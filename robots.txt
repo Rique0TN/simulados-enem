@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://rique0tn.github.io/simulados-enem/sitemap.xml
