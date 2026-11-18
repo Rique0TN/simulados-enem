@@ -268,6 +268,21 @@
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <footer class="rodape">
+  <div class="apoio" style="margin:1rem auto;max-width:34rem;text-align:center">
+    <p class="nota-peq"><strong>Apoie o projeto (opcional):</strong> o site é gratuito e continua sendo. Se ele te ajudou, qualquer valor via Pix ajuda a manter.</p>
+    <p class="nota-peq">Chave Pix aleatória: <code id="pix-chave" style="word-break:break-all">3d27b8ca-2e26-4722-b868-94cdf74057bb</code></p>
+    <button type="button" class="btn btn-sec" id="pix-copiar">Copiar chave Pix</button>
+    <span id="pix-ok" class="nota-peq" role="status" aria-live="polite"></span>
+  </div>
+  <script>
+  (function(){var b=document.getElementById("pix-copiar"),o=document.getElementById("pix-ok"),k="3d27b8ca-2e26-4722-b868-94cdf74057bb";
+  if(!b)return;b.addEventListener("click",function(){
+    function ok(){o.textContent=" Chave copiada!";}
+    if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(k).then(ok,fb);}else{fb();}
+    function fb(){var t=document.createElement("textarea");t.value=k;document.body.appendChild(t);t.select();try{document.execCommand("copy");ok();}catch(e){o.textContent=" Copie a chave acima.";}document.body.removeChild(t);}
+  });})();
+  </script>
+
   <p>Questões inéditas no estilo do ENEM, criadas para estudo. Não é site oficial do INEP.</p>
   <p class="nota-peq">Seu progresso fica salvo apenas neste navegador (armazenamento local); nada é enviado a servidores. <a href="privacidade.html">Política de privacidade</a></p>
 </footer>
