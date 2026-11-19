@@ -101,10 +101,35 @@
         db = window.firebase.firestore();
         auth.onAuthStateChanged(function (u) {
           usuario = u; statusTxt = ""; pronto = false; render();
-          if (u) sincronizarAoEntrar();
+          if (u) { fecharLobby(); sincronizarAoEntrar(); } else mostrarLobby();
         });
       });
   }
+  /* ---------- tela de boas-vindas (lobby) ---------- */
+  var CHAVE_LOBBY = "simuladosEnem.lobby";
+  function lobbyJaEscolhido() { try { return localStorage.getItem(CHAVE_LOBBY) === "convidado"; } catch (e) { return false; } }
+  function fecharLobby() { var l = document.getElementById("lobby"); if (l) l.remove(); document.body.classList.remove("com-lobby"); }
+  function mostrarLobby() {
+    if (document.getElementById("lobby") || lobbyJaEscolhido()) return;
+    var l = document.createElement("div");
+    l.id = "lobby"; l.className = "lobby"; l.setAttribute("role", "dialog"); l.setAttribute("aria-modal", "true"); l.setAttribute("aria-labelledby", "lobby-t");
+    l.innerHTML = "<div class='lobby-caixa'>" +
+      "<h2 id='lobby-t'>Simulados ENEM</h2>" +
+      "<p class='lobby-sub'>Simulados, treino por área, caderno de erros e redação. Grátis.</p>" +
+      "<button type='button' class='btn btn-pri lobby-btn' id='lobby-entrar'>Entrar com Google</button>" +
+      "<p class='nota-peq'>Seu progresso fica salvo na sua conta e aparece no celular e no computador.</p>" +
+      "<button type='button' class='btn btn-sec lobby-btn' id='lobby-convidado'>Testar sem login</button>" +
+      "<p class='lobby-aviso'>⚠️ Sem login, o progresso fica só neste navegador. Você pode perdê-lo se limpar os dados, usar aba anônima ou trocar de aparelho.</p>" +
+      "</div>";
+    document.body.appendChild(l); document.body.classList.add("com-lobby");
+    document.getElementById("lobby-entrar").addEventListener("click", function () { entrar(); });
+    document.getElementById("lobby-convidado").addEventListener("click", function () {
+      try { localStorage.setItem(CHAVE_LOBBY, "convidado"); } catch (e) {}
+      fecharLobby();
+    });
+    document.getElementById("lobby-entrar").focus();
+  }
+
   function entrar() {
     if (!auth) return;
     auth.signInWithPopup(new window.firebase.auth.GoogleAuthProvider()).catch(function (e) { console.warn("Login não concluído", e && e.code); });

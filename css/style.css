@@ -221,3 +221,13 @@ select{font:inherit;font-size:1rem;min-height:46px;border:1px solid #b9c6e6;bord
 .agora ul{margin:0;padding-left:20px} .agora li{margin:4px 0}
 .pagina-texto h2{margin-top:1.2em}
 #sr-area{margin-top:12px}
+
+/* lobby (tela de boas-vindas) */
+.com-lobby{overflow:hidden}
+.lobby{position:fixed;inset:0;z-index:100;background:rgba(30,58,138,.92);display:flex;align-items:center;justify-content:center;padding:20px;padding-top:calc(20px + env(safe-area-inset-top))}
+.lobby-caixa{background:var(--branco);border-radius:var(--raio);padding:24px 20px;max-width:420px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:center}
+.lobby-caixa h2{margin:0 0 6px;color:var(--azul-esc)}
+.lobby-sub{color:var(--suave);margin:0 0 18px}
+.lobby-btn{display:block;width:100%;margin:10px 0 4px;min-height:52px}
+.lobby-caixa .nota-peq{margin:0 0 12px}
+.lobby-aviso{background:var(--amarelo-claro);color:#713f12;border:1px solid #f1d58a;border-radius:10px;padding:10px 12px;font-size:.9rem;margin:8px 0 0;text-align:left}
