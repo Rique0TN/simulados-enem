@@ -134,6 +134,31 @@
     if (!auth) return;
     auth.signInWithPopup(new window.firebase.auth.GoogleAuthProvider()).catch(function (e) { console.warn("Login não concluído", e && e.code); });
   }
+
+  /* ---------- feedback (coleção "feedbacks": só criação) ---------- */
+  function ligarFeedback() {
+    var f = document.getElementById("form-feedback"); if (!f) return;
+    f.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var st = document.getElementById("fb-status"), bt = document.getElementById("fb-enviar");
+      var texto = (document.getElementById("fb-texto").value || "").trim();
+      if (!texto) { st.textContent = "Escreva sua mensagem antes de enviar."; return; }
+      var dados = { texto: texto.slice(0, 2000), tipo: document.getElementById("fb-tipo").value,
+        contato: (document.getElementById("fb-contato").value || "").trim().slice(0, 120),
+        logado: !!usuario, pagina: location.pathname, quando: new Date().toISOString() };
+      if (!db) {
+        location.href = "mailto:rique.hrg2008@gmail.com?subject=" + encodeURIComponent("Feedback Simulados ENEM: " + dados.tipo) + "&body=" + encodeURIComponent(texto);
+        return;
+      }
+      bt.disabled = true; st.textContent = "Enviando...";
+      db.collection("feedbacks").add(dados).then(function () {
+        st.textContent = "Valeu! Feedback recebido."; f.reset();
+      }).catch(function (e) {
+        console.warn("Falha no feedback", e && e.code); st.textContent = "Não deu para enviar agora. Tente de novo em instantes.";
+      }).then(function () { bt.disabled = false; });
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ligarFeedback); else ligarFeedback();
   window.SiteAuth = { configurado: configurado, usuario: function () { return usuario; }, render: render };
   render();
   if (configurado) iniciar().catch(function (e) { console.warn("Login indisponível; seguindo sem login.", e && e.message); configurado = false; render(); });
