@@ -19,7 +19,7 @@
 <meta property="og:url" content="https://rique0tn.github.io/simulados-enem/">
 <meta property="og:image" content="https://rique0tn.github.io/simulados-enem/og-image.png">
 <meta name="twitter:card" content="summary">
-<link rel="stylesheet" href="css/style.css?v=or1">
+<link rel="stylesheet" href="css/style.css?v=cm1">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebApplication","name":"Simulados ENEM","url":"https://rique0tn.github.io/simulados-enem/","applicationCategory":"EducationalApplication","inLanguage":"pt-BR","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"BRL"},"description":"Simulados online no formato do ENEM com questões inéditas e oficiais do ENEM, correção comentada, estimativa de nota e corretor automático de redação."}
 </script>
@@ -87,6 +87,17 @@
       <div class="acoes" style="margin-top:8px"><button type="submit" class="btn btn-pri" id="fb-enviar">Enviar feedback</button></div>
       <p class="status" id="fb-status" aria-live="polite"></p>
     </form>
+  </div>
+  <div class="cartao" id="comentarios" style="margin-top:16px">
+    <h2 class="h3">Comentários</h2>
+    <p class="nota-peq">Conte como está sendo seu treino, dê dicas ou deixe um recado para quem também vai fazer o ENEM. Os comentários são públicos e mostram seu nome e foto do Google.</p>
+    <form id="form-coment" hidden>
+      <textarea id="cm-texto" rows="3" maxlength="500" required style="width:100%;box-sizing:border-box;font:inherit;padding:8px;border-radius:8px;border:1px solid #ccc" placeholder="Escreva um comentário (até 500 caracteres)"></textarea>
+      <div class="acoes" style="margin-top:6px"><button type="submit" class="btn btn-pri" id="cm-enviar">Publicar comentário</button><span class="nota-peq" id="cm-cont">0/500</span></div>
+    </form>
+    <p id="cm-login" class="nota-peq" hidden>Para comentar, <button type="button" class="btn btn-sec btn-peq" id="cm-entrar">entre com Google</button></p>
+    <p class="status" id="cm-status" aria-live="polite"></p>
+    <ul id="cm-lista" class="cm-lista"></ul>
   </div>
   <div id="geral-wrap" class="centro" hidden>
     <button class="btn btn-sec" id="btn-geral">Ver resultado geral (1º + 2º dia)</button>
@@ -303,18 +314,18 @@
   <p class="nota-peq">Seu progresso fica salvo apenas neste navegador (armazenamento local); nada é enviado a servidores. <a href="privacidade.html">Política de privacidade</a></p>
 </footer>
 
-<script src="js/config.js?v=or1"></script>
-<script src="js/firebase-config.js?v=or1"></script>
-<script src="data/lc.js?v=or1"></script>
-<script src="data/ch.js?v=or1"></script>
-<script src="data/cn.js?v=or1"></script>
-<script src="data/mt.js?v=or1"></script>
-<script src="data/redacao.js?v=or1"></script>
-<script src="data/enem-oficial.js?v=or1"></script>
-<script src="data/enem-agora.js?v=or1"></script>
-<script src="js/nota.js?v=or1"></script>
-<script src="js/redacao.js?v=or1"></script>
-<script src="js/app.js?v=or1"></script>
-<script src="js/auth.js?v=or1"></script>
+<script src="js/config.js?v=cm1"></script>
+<script src="js/firebase-config.js?v=cm1"></script>
+<script src="data/lc.js?v=cm1"></script>
+<script src="data/ch.js?v=cm1"></script>
+<script src="data/cn.js?v=cm1"></script>
+<script src="data/mt.js?v=cm1"></script>
+<script src="data/redacao.js?v=cm1"></script>
+<script src="data/enem-oficial.js?v=cm1"></script>
+<script src="data/enem-agora.js?v=cm1"></script>
+<script src="js/nota.js?v=cm1"></script>
+<script src="js/redacao.js?v=cm1"></script>
+<script src="js/app.js?v=cm1"></script>
+<script src="js/auth.js?v=cm1"></script>
 </body>
 </html>

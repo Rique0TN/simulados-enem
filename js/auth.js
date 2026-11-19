@@ -110,7 +110,7 @@
         auth = window.firebase.auth();
         db = window.firebase.firestore();
         auth.onAuthStateChanged(function (u) {
-          usuario = u; statusTxt = ""; pronto = false; render();
+          usuario = u; statusTxt = ""; pronto = false; render(); renderComentLogin(); if (!ouvindo) { ouvindo = true; ouvirComentarios(); }
           if (u) { fecharLobby(); sincronizarAoEntrar(); } else mostrarLobby();
         });
       });
@@ -169,6 +169,69 @@
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ligarFeedback); else ligarFeedback();
+
+  /* ---------- comentários públicos (coleção "comentarios") ---------- */
+  var PROIBIDAS = ["porra","caralho","buceta","viado","puta","fdp","vsf","arrombad","cuzao","cuzão","merda"];
+  var ultimoCom = 0, ouvindo = false;
+  function tempoRel(d) {
+    if (!d) return "agora";
+    var s = (Date.now() - d.getTime()) / 1000;
+    if (s < 60) return "agora"; if (s < 3600) return Math.floor(s / 60) + " min";
+    if (s < 86400) return Math.floor(s / 3600) + " h"; return d.toLocaleDateString("pt-BR");
+  }
+  function renderComentLogin() {
+    var f = document.getElementById("form-coment"), l = document.getElementById("cm-login");
+    if (!f) return; f.hidden = !usuario; l.hidden = !!usuario || !auth;
+  }
+  function ouvirComentarios() {
+    var ul = document.getElementById("cm-lista"); if (!ul || !db) return;
+    db.collection("comentarios").orderBy("criadoEm", "desc").limit(50).onSnapshot(function (snap) {
+      ul.innerHTML = "";
+      if (snap.empty) { var v = document.createElement("li"); v.className = "nota-peq"; v.textContent = "Ainda não há comentários. Seja o primeiro!"; ul.appendChild(v); return; }
+      snap.forEach(function (doc) {
+        var c = doc.data(), li = document.createElement("li"); li.className = "cm-item";
+        var img = document.createElement("img"); img.className = "avatar"; img.alt = ""; img.referrerPolicy = "no-referrer";
+        var ini = document.createElement("span"); ini.className = "avatar avatar-ini"; ini.textContent = (c.nome || "?").charAt(0).toUpperCase();
+        if (c.foto && /^https:\/\//.test(c.foto)) { img.src = c.foto; img.onerror = function () { img.replaceWith(ini); }; li.appendChild(img); } else li.appendChild(ini);
+        var corpo = document.createElement("div"); corpo.className = "cm-corpo";
+        var topo = document.createElement("div"); topo.className = "cm-topo";
+        var nm = document.createElement("b"); nm.textContent = c.nome || "Estudante";
+        var tp = document.createElement("span"); tp.className = "nota-peq"; tp.textContent = " · " + tempoRel(c.criadoEm && c.criadoEm.toDate ? c.criadoEm.toDate() : null);
+        topo.appendChild(nm); topo.appendChild(tp);
+        if (usuario && c.uid === usuario.uid) {
+          var del = document.createElement("button"); del.type = "button"; del.className = "cm-apagar"; del.textContent = "apagar";
+          del.addEventListener("click", function () { if (confirm("Apagar seu comentário?")) doc.ref.delete().catch(function () { aviso("Não foi possível apagar."); }); });
+          topo.appendChild(del);
+        }
+        var tx = document.createElement("p"); tx.className = "cm-texto"; tx.textContent = c.texto;
+        corpo.appendChild(topo); corpo.appendChild(tx); li.appendChild(corpo); ul.appendChild(li);
+      });
+    }, function (e) { console.warn("Comentários indisponíveis", e && e.code); document.getElementById("cm-status").textContent = "Comentários indisponíveis agora."; });
+  }
+  function ligarComentarios() {
+    var f = document.getElementById("form-coment"); if (!f) return;
+    var ta = document.getElementById("cm-texto"), ct = document.getElementById("cm-cont");
+    ta.addEventListener("input", function () { ct.textContent = ta.value.length + "/500"; });
+    document.getElementById("cm-entrar").addEventListener("click", entrar);
+    f.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var st = document.getElementById("cm-status"), bt = document.getElementById("cm-enviar");
+      var texto = (ta.value || "").trim();
+      if (!usuario || !db) { st.textContent = "Entre com Google para comentar."; return; }
+      if (!texto) return;
+      var low = texto.toLowerCase();
+      if (PROIBIDAS.some(function (w) { return low.indexOf(w) >= 0; })) { st.textContent = "Seu comentário tem palavras que não são permitidas aqui."; return; }
+      if (/https?:\/\/|www\./i.test(texto)) { st.textContent = "Links não são permitidos nos comentários."; return; }
+      if (Date.now() - ultimoCom < 60000) { st.textContent = "Espere um minuto antes de comentar de novo."; return; }
+      bt.disabled = true; st.textContent = "Publicando...";
+      db.collection("comentarios").add({ uid: usuario.uid, nome: (usuario.displayName || "Estudante").slice(0, 60),
+        foto: usuario.photoURL || "", texto: texto.slice(0, 500), criadoEm: window.firebase.firestore.FieldValue.serverTimestamp() })
+        .then(function () { ultimoCom = Date.now(); ta.value = ""; ct.textContent = "0/500"; st.textContent = "Comentário publicado!"; })
+        .catch(function (e) { console.warn("Falha ao comentar", e && e.code); st.textContent = "Não deu para publicar agora."; })
+        .then(function () { bt.disabled = false; });
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ligarComentarios); else ligarComentarios();
   window.SiteAuth = { configurado: configurado, usuario: function () { return usuario; }, render: render };
   render();
   if (configurado) iniciar().catch(function (e) { console.warn("Login indisponível; seguindo sem login.", e && e.message); configurado = false; render(); });
