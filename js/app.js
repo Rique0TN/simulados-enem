@@ -632,11 +632,13 @@
       if (f.area && i.area !== f.area) return false;
       if (f.disc && (i.q.disc || "") !== f.disc) return false;
       if (f.dif && String(i.q.dif) !== String(f.dif)) return false;
+      if (f.origem === "oficiais" && !i.q.oficial) return false;
+      if (f.origem === "ineditas" && i.q.oficial) return false;
       if (f.assunto && chaveAssunto(i.q, i.area) !== f.assunto) return false;
       return true;
     }).map(function (id) { return Q[id].q; });
   }
-  function filtrosDoForm() { return { area: $("#f-area").value, disc: $("#f-disc").value, dif: $("#f-dif").value }; }
+  function filtrosDoForm() { return { area: $("#f-area").value, disc: $("#f-disc").value, dif: $("#f-dif").value, origem: $("#f-origem") ? $("#f-origem").value : "" }; }
   function preencherDisc() {
     var area = $("#f-area").value, sel = $("#f-disc"), atualV = sel.value, ds = {};
     Object.keys(Q).forEach(function (id) { var i = Q[id]; if ((!area || i.area === area) && i.q.disc) ds[i.q.disc] = 1; });
@@ -652,13 +654,13 @@
     $("#f-area").innerHTML = "<option value=''>Todas</option>" + ["LC", "CH", "CN", "MT"].map(function (a) { return "<option value='" + a + "'>" + NOMES[a] + "</option>"; }).join("");
     preencherDisc();
     $("#f-area").addEventListener("change", function () { $("#f-disc").value = ""; preencherDisc(); atualizarDisp(); });
-    ["#f-disc", "#f-dif", "#f-qtd"].forEach(function (s) { $(s).addEventListener("change", atualizarDisp); });
+    ["#f-disc", "#f-dif", "#f-qtd", "#f-origem"].forEach(function (s) { $(s).addEventListener("change", atualizarDisp); });
   })();
   $("#form-treino").addEventListener("submit", function (e) {
     e.preventDefault();
     var f = filtrosDoForm(), pool = poolFiltrado(f), n = +$("#f-qtd").value;
     var qids = $("#f-novas").checked ? sortear(pool, n) : embaralhar(pool).slice(0, n).map(function (q) { return q.id; });
-    var rot = [f.area ? NOMES[f.area] : "Todas as áreas", f.disc, f.dif ? "dificuldade " + DIF_NOME[f.dif] : ""].filter(Boolean).join(" · ");
+    var rot = [f.area ? NOMES[f.area] : "Todas as áreas", f.disc, f.dif ? "dificuldade " + DIF_NOME[f.dif] : "", f.origem === "oficiais" ? "provas oficiais" : f.origem === "ineditas" ? "inéditas" : ""].filter(Boolean).join(" · ");
     iniciarTreino(qids, rot, "livre");
   });
   function iniciarTreino(qids, titulo, modo) {
