@@ -224,10 +224,11 @@ select{font:inherit;font-size:1rem;min-height:46px;border:1px solid #b9c6e6;bord
 
 /* lobby (tela de boas-vindas) */
 .com-lobby{overflow:hidden}
-.lobby{position:fixed;inset:0;z-index:100;background:rgba(30,58,138,.92);display:flex;align-items:center;justify-content:center;padding:20px;padding-top:calc(20px + env(safe-area-inset-top))}
+.lobby{position:fixed;inset:0;z-index:100;background:radial-gradient(circle at 20% 15%,rgba(255,255,255,.14) 0 18%,transparent 19%),radial-gradient(circle at 85% 85%,rgba(255,255,255,.10) 0 22%,transparent 23%),linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 50%,#15803d 100%);display:flex;align-items:center;justify-content:center;padding:20px;padding-top:calc(20px + env(safe-area-inset-top))}
 .lobby-caixa{background:var(--branco);border-radius:var(--raio);padding:24px 20px;max-width:420px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:center}
 .lobby-caixa h2{margin:0 0 6px;color:var(--azul-esc)}
 .lobby-sub{color:var(--suave);margin:0 0 18px}
 .lobby-btn{display:block;width:100%;margin:10px 0 4px;min-height:52px}
 .lobby-caixa .nota-peq{margin:0 0 12px}
 .lobby-aviso{background:var(--amarelo-claro);color:#713f12;border:1px solid #f1d58a;border-radius:10px;padding:10px 12px;font-size:.9rem;margin:8px 0 0;text-align:left}
+.lobby-selo{display:block;font-size:.95rem;font-weight:600;color:var(--verde);margin-top:4px}
