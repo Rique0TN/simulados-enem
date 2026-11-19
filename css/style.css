@@ -245,3 +245,12 @@ select{font:inherit;font-size:1rem;min-height:46px;border:1px solid #b9c6e6;bord
 .cm-topo{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .cm-texto{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
 .cm-apagar{margin-left:auto;background:none;border:0;color:#c62828;font:inherit;font-size:.8rem;cursor:pointer}
+
+.av-resumo{display:flex;align-items:baseline;gap:6px;margin:6px 0}
+.av-media{font-size:1.6rem;font-weight:700}
+.av-est,.cm-est{color:#f5a623;letter-spacing:1px}
+.av-minha{display:flex;align-items:center;gap:8px;margin:4px 0 10px;flex-wrap:wrap}
+.estrelas-in button{background:none;border:0;font-size:1.7rem;line-height:1;color:#ccc;cursor:pointer;padding:0 2px}
+.estrelas-in button.on{color:#f5a623}
+.estrelas-in:hover button{color:#f5a623}
+.estrelas-in button:hover~button{color:#ccc}

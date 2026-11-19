@@ -110,7 +110,7 @@
         auth = window.firebase.auth();
         db = window.firebase.firestore();
         auth.onAuthStateChanged(function (u) {
-          usuario = u; statusTxt = ""; pronto = false; render(); renderComentLogin(); if (!ouvindo) { ouvindo = true; ouvirComentarios(); }
+          usuario = u; statusTxt = ""; pronto = false; render(); renderComentLogin(); if (!ouvindo) { ouvindo = true; ouvirComentarios(); ouvirAvaliacoes(); } renderAvaliacoes(); if (window.__cmRerender) window.__cmRerender();
           if (u) { fecharLobby(); sincronizarAoEntrar(); } else mostrarLobby();
         });
       });
@@ -185,7 +185,10 @@
   }
   function ouvirComentarios() {
     var ul = document.getElementById("cm-lista"); if (!ul || !db) return;
-    db.collection("comentarios").orderBy("criadoEm", "desc").limit(50).onSnapshot(function (snap) {
+    var ultimoSnap = null;
+    window.__cmRerender = function () { if (ultimoSnap) desenhar(ultimoSnap); };
+    db.collection("comentarios").orderBy("criadoEm", "desc").limit(50).onSnapshot(function (snap) { ultimoSnap = snap; desenhar(snap); }, function (e) { console.warn("Comentários indisponíveis", e && e.code); document.getElementById("cm-status").textContent = "Comentários indisponíveis agora."; });
+    function desenhar(snap) {
       ul.innerHTML = "";
       if (snap.empty) { var v = document.createElement("li"); v.className = "nota-peq"; v.textContent = "Ainda não há comentários. Seja o primeiro!"; ul.appendChild(v); return; }
       snap.forEach(function (doc) {
@@ -197,7 +200,9 @@
         var topo = document.createElement("div"); topo.className = "cm-topo";
         var nm = document.createElement("b"); nm.textContent = c.nome || "Estudante";
         var tp = document.createElement("span"); tp.className = "nota-peq"; tp.textContent = " · " + tempoRel(c.criadoEm && c.criadoEm.toDate ? c.criadoEm.toDate() : null);
-        topo.appendChild(nm); topo.appendChild(tp);
+        topo.appendChild(nm);
+        if (NOTAS[c.uid]) { var es = document.createElement("span"); es.className = "cm-est"; es.title = NOTAS[c.uid] + " de 5"; es.textContent = " " + estrelasTxt(NOTAS[c.uid]); topo.appendChild(es); }
+        topo.appendChild(tp);
         if (usuario && c.uid === usuario.uid) {
           var del = document.createElement("button"); del.type = "button"; del.className = "cm-apagar"; del.textContent = "apagar";
           del.addEventListener("click", function () { if (confirm("Apagar seu comentário?")) doc.ref.delete().catch(function () { aviso("Não foi possível apagar."); }); });
@@ -206,7 +211,7 @@
         var tx = document.createElement("p"); tx.className = "cm-texto"; tx.textContent = c.texto;
         corpo.appendChild(topo); corpo.appendChild(tx); li.appendChild(corpo); ul.appendChild(li);
       });
-    }, function (e) { console.warn("Comentários indisponíveis", e && e.code); document.getElementById("cm-status").textContent = "Comentários indisponíveis agora."; });
+    }
   }
   function ligarComentarios() {
     var f = document.getElementById("form-coment"); if (!f) return;
@@ -232,6 +237,43 @@
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ligarComentarios); else ligarComentarios();
+
+  /* ---------- avaliações 5 estrelas (coleção "avaliacoes/{uid}") ---------- */
+  var NOTAS = {};
+  function estrelasTxt(n) { return "★★★★★".slice(0, n) + "☆☆☆☆☆".slice(0, 5 - n); }
+  function renderAvaliacoes() {
+    var r = document.getElementById("av-resumo"); if (!r) return;
+    var v = Object.keys(NOTAS).map(function (k) { return NOTAS[k]; });
+    if (!v.length) { r.innerHTML = "<span class='nota-peq'>Ainda sem avaliações.</span>"; }
+    else {
+      var m = v.reduce(function (a, b) { return a + b; }, 0) / v.length;
+      r.innerHTML = "<span class='av-media'>" + m.toFixed(1).replace(".", ",") + "</span> <span class='av-est'>" + estrelasTxt(Math.round(m)) + "</span> <span class='nota-peq'>(" + v.length + (v.length === 1 ? " avaliação" : " avaliações") + ")</span>";
+    }
+    var minha = document.getElementById("av-minha"); if (!minha) return;
+    minha.hidden = !usuario;
+    var n = usuario ? (NOTAS[usuario.uid] || 0) : 0;
+    minha.querySelectorAll("button[data-n]").forEach(function (b) { var on = +b.dataset.n <= n; b.classList.toggle("on", on); b.setAttribute("aria-checked", +b.dataset.n === n ? "true" : "false"); });
+  }
+  function ouvirAvaliacoes() {
+    if (!db) return;
+    db.collection("avaliacoes").onSnapshot(function (snap) {
+      NOTAS = {}; snap.forEach(function (d) { var x = d.data().nota; if (x >= 1 && x <= 5) NOTAS[d.id] = x; });
+      renderAvaliacoes(); if (window.__cmRerender) window.__cmRerender();
+    }, function (e) { console.warn("Avaliações indisponíveis", e && e.code); });
+  }
+  function ligarAvaliacoes() {
+    var minha = document.getElementById("av-minha"); if (!minha) return;
+    minha.querySelectorAll("button[data-n]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (!usuario || !db) return;
+        var n = +b.dataset.n;
+        db.collection("avaliacoes").doc(usuario.uid).set({ nota: n, atualizadoEm: window.firebase.firestore.FieldValue.serverTimestamp() })
+          .then(function () { aviso("Valeu pela nota: " + n + (n === 1 ? " estrela" : " estrelas") + "!"); })
+          .catch(function (e) { console.warn("Falha ao avaliar", e && e.code); aviso("Não deu para salvar sua nota agora."); });
+      });
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", ligarAvaliacoes); else ligarAvaliacoes();
   window.SiteAuth = { configurado: configurado, usuario: function () { return usuario; }, render: render };
   render();
   if (configurado) iniciar().catch(function (e) { console.warn("Login indisponível; seguindo sem login.", e && e.message); configurado = false; render(); });
