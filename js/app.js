@@ -732,6 +732,15 @@
     var h = "<div class='cartao'><h2 class='h3'>Resultado do treino</h2>" + (t.titulo ? "<p class='nota-peq'>" + esc(t.titulo) + "</p>" : "");
     h += r.tot ? "<div class='resumo'><div class='kpi verde'><b>" + fmtPct(pct(r.ac, r.tot)) + "</b>acertos (" + r.ac + "/" + r.tot + ")</div><div class='kpi verm'><b>" + (r.tot - r.ac) + "</b>erros (foram para o caderno)</div>" + (t.saiu ? "<div class='kpi'><b>" + t.saiu + "</b>saíram do caderno</div>" : "") + "</div>"
       : "<p>Nenhuma questão respondida neste treino.</p>";
+    if (r.tot) {
+      var o = { ac: 0, tot: 0 }, n = { ac: 0, tot: 0 };
+      t.qids.forEach(function (id) {
+        var L = t.answers[id], info = Q[id]; if (!L || !info) return;
+        var g = info.q.oficial ? o : n; g.tot++; if (L === info.q.gabarito) g.ac++;
+      });
+      var lin = function (nome, g) { return "<li><b>" + nome + ":</b> " + g.ac + " de " + g.tot + " (" + fmtPct(pct(g.ac, g.tot)) + ")</li>"; };
+      if (o.tot || n.tot) h += "<ul class='por-origem' style='margin:8px 0 0;padding-left:18px'>" + (o.tot ? lin("Provas oficiais do ENEM", o) : "") + (n.tot ? lin("Inéditas", n) : "") + "</ul>";
+    }
     h += "<div class='acoes'><button class='btn btn-pri' id='tr-novo'>Novo treino</button><button class='btn btn-sec' data-ir='caderno'>Caderno de erros</button><button class='btn btn-sec' data-ir='evolucao'>Minha evolução</button></div></div>";
     $("#treino-fim").innerHTML = h;
     $("#tr-novo").addEventListener("click", function () { S.treino = null; salvar(); renderTreino(); });
