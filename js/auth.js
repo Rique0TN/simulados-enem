@@ -20,8 +20,18 @@
         b.textContent = "Login em breve"; b.disabled = true;
         b.title = "O login ainda não está disponível. Seu progresso fica salvo neste navegador.";
       } else if (usuario) {
-        b.textContent = "Sair (" + (usuario.displayName || usuario.email || "conta") + ")";
-        b.title = statusTxt || "Progresso sincronizado com sua conta Google.";
+        var nome = usuario.displayName || usuario.email || "Conta";
+        var perfil = document.createElement("span"); perfil.className = "perfil";
+        perfil.title = statusTxt || ("Logado como " + nome + ". Progresso sincronizado com sua conta Google.");
+        var ini = document.createElement("span"); ini.className = "avatar avatar-ini"; ini.textContent = nome.charAt(0).toUpperCase();
+        if (usuario.photoURL) {
+          var img = document.createElement("img"); img.className = "avatar"; img.alt = ""; img.referrerPolicy = "no-referrer";
+          img.src = usuario.photoURL; img.onerror = function () { img.replaceWith(ini); };
+          perfil.appendChild(img);
+        } else perfil.appendChild(ini);
+        var nm = document.createElement("span"); nm.className = "perfil-nome"; nm.textContent = nome.split(" ")[0];
+        perfil.appendChild(nm); el.appendChild(perfil);
+        b.textContent = "Sair";
         b.addEventListener("click", function () { auth.signOut(); });
       } else {
         b.textContent = "Entrar";
