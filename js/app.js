@@ -40,6 +40,7 @@
     try {
       localStorage.setItem(CFG.STORAGE_KEY, JSON.stringify(S));
       ultimoSalvo = new Date();
+      if (window.SiteSync) window.SiteSync.agendar();
       var el = $("#salvo"); if (el) el.textContent = "Salvo às " + ultimoSalvo.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       if (manual) toast("Progresso salvo neste aparelho.");
       return true;
@@ -936,5 +937,9 @@
   rotaDoHash();
   history.replaceState(null, "", "#" + atual.tela + (atual.dia ? "-" + atual.dia : ""));
   render();
-  window.__app = { estado: function () { return S; }, Q: Q, versao: 2 };
+  window.__app = {
+    estado: function () { return S; }, Q: Q, versao: 2,
+    substituir: function (o) { if (!valido(o)) return; S = normalizar(o); salvar(); render(); }
+  };
+  if (window.SiteSync) window.SiteSync.appPronto();
 })();
