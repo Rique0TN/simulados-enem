@@ -351,5 +351,286 @@ window.ENEM_DATA.REDACAO = [
 ],
 "comentario": "Esperava-se discutir por que as cidades brasileiras continuam centradas no automóvel: priorização histórica de vias para carros, transporte coletivo caro e de baixa qualidade, segregação entre moradia e trabalho, falta de ciclovias e calçadas seguras, poluição e emissões. Repertórios: Lei 12.587/2012, EC 90/2015 (transporte como direito social), Henri Lefebvre (O direito à cidade), Milton Santos (espaço urbano e desigualdade), experiências de BRT e faixas exclusivas. Proposta completa: as prefeituras (agente), com recursos do Governo Federal, devem ampliar faixas exclusivas de ônibus e ciclovias integradas (ação), por meio de planos de mobilidade com participação popular e de subsídios à tarifa (meio), priorizando bairros periféricos com maior tempo de deslocamento (detalhamento), a fim de reduzir congestionamentos, emissões e desigualdades de acesso à cidade (finalidade).",
 "instrucoes": "A partir da leitura dos textos motivadores e com base nos conhecimentos construídos ao longo de sua formação, redija texto dissertativo-argumentativo em modalidade escrita formal da língua portuguesa sobre o tema \"Desafios para a mobilidade urbana sustentável nas cidades brasileiras\", apresentando proposta de intervenção que respeite os direitos humanos. Selecione, organize e relacione, de forma coerente e coesa, argumentos e fatos para defesa de seu ponto de vista."
+},
+{
+"id": "desinformacao-vacinas",
+"tema": "Caminhos para combater a desinformação sobre vacinas no Brasil",
+"instrucoes": "A partir da leitura dos textos motivadores e com base nos conhecimentos construídos ao longo de sua formação, redija texto dissertativo-argumentativo em modalidade escrita formal da língua portuguesa sobre o tema \"Caminhos para combater a desinformação sobre vacinas no Brasil\", apresentando proposta de intervenção que respeite os direitos humanos. Selecione, organize e relacione, de forma coerente e coesa, argumentos e fatos para defesa de seu ponto de vista.",
+"textos": [
+{
+"rotulo": "TEXTO I",
+"texto": "A saúde é direito de todos e dever do Estado, garantido mediante políticas sociais e econômicas que visem à redução do risco de doença e de outros agravos e ao acesso universal e igualitário às ações e serviços para sua promoção, proteção e recuperação.",
+"fonte": "BRASIL. Constituição da República Federativa do Brasil de 1988, art. 196."
+},
+{
+"rotulo": "TEXTO II",
+"texto": "Criado em 1973, o Programa Nacional de Imunizações tornou o Brasil referência mundial em vacinação gratuita, contribuindo para a eliminação de doenças como a poliomielite no país. Nos últimos anos, porém, autoridades de saúde passaram a alertar para a queda das coberturas vacinais e para a circulação de boatos sobre supostos riscos das vacinas, espalhados principalmente por aplicativos de mensagens e redes sociais.",
+"fonte": "Texto elaborado para fins didáticos com base em informações do Ministério da Saúde."
+},
+{
+"rotulo": "TEXTO III",
+"texto": "[Charge descrita: uma mãe segura o celular, que exibe a mensagem \"URGENTE! Compartilhe antes que apaguem!\". Ao fundo, um cartaz do posto de saúde anuncia a campanha de vacinação. A criança pergunta: \"Mãe, quem é que manda mais: o posto ou o grupo da família?\"]",
+"fonte": "Charge elaborada para fins didáticos."
+}
+],
+"comentario": "Esperava-se discutir por que boatos sobre vacinas se espalham e afetam a cobertura vacinal: lógica dos algoritmos e da viralização, baixa confiança em instituições, pouca educação científica e midiática, ausência de memória social de doenças já controladas, falhas de comunicação pública. Repertórios possíveis: Revolta da Vacina (1904) e Oswaldo Cruz, a erradicação da varíola, o conceito de pós-verdade, Zygmunt Bauman, Umberto Eco sobre as redes sociais, o sucesso histórico do Zé Gotinha. Fugir do tema seria falar só de fake news em geral, sem vacinas. Exemplo de proposta: o Ministério da Saúde (agente), com escolas e agentes comunitários, deve promover campanhas de esclarecimento (ação) em linguagem simples nas redes e em visitas domiciliares (meio), a fim de recuperar a confiança na vacinação (finalidade). Zeram a redação: fuga total ao tema, não atendimento ao tipo dissertativo-argumentativo, texto com até 7 linhas, cópia predominante dos textos motivadores, parte desconectada do tema, impropérios ou desenhos, identificação fora do local, texto em língua estrangeira ou folha em branco. Desrespeitar os direitos humanos zera a competência 5.",
+"nucleo": [
+[
+"vacina",
+"vacinação",
+"imuniza",
+"vacinal"
+],
+[
+"desinforma",
+"fake news",
+"boato",
+"notícias falsas",
+"notícia falsa",
+"mentira"
+]
+],
+"palavras": [
+"vacina",
+"vacinas",
+"vacinação",
+"imunização",
+"desinformação",
+"fake news",
+"boatos",
+"saúde",
+"sus",
+"redes sociais",
+"ciência",
+"cobertura",
+"doenças",
+"confiança",
+"informação"
+]
+},
+{
+"id": "pcd-trabalho",
+"tema": "Desafios para a inclusão de pessoas com deficiência no mercado de trabalho brasileiro",
+"instrucoes": "A partir da leitura dos textos motivadores e com base nos conhecimentos construídos ao longo de sua formação, redija texto dissertativo-argumentativo em modalidade escrita formal da língua portuguesa sobre o tema \"Desafios para a inclusão de pessoas com deficiência no mercado de trabalho brasileiro\", apresentando proposta de intervenção que respeite os direitos humanos. Selecione, organize e relacione, de forma coerente e coesa, argumentos e fatos para defesa de seu ponto de vista.",
+"textos": [
+{
+"rotulo": "TEXTO I",
+"texto": "A empresa com 100 (cem) ou mais empregados está obrigada a preencher de 2% (dois por cento) a 5% (cinco por cento) dos seus cargos com beneficiários reabilitados ou pessoas portadoras de deficiência, habilitadas.",
+"fonte": "BRASIL. Lei nº 8.213, de 24 de julho de 1991, art. 93."
+},
+{
+"rotulo": "TEXTO II",
+"texto": "A Lei Brasileira de Inclusão da Pessoa com Deficiência (Lei nº 13.146/2015) assegura o direito ao trabalho de livre escolha, em ambiente acessível e inclusivo, em igualdade de oportunidades com as demais pessoas. Na prática, organizações que atuam na área apontam barreiras como a falta de acessibilidade nos locais de trabalho e no transporte, a baixa escolaridade causada por exclusão escolar e o preconceito de recrutadores, que muitas vezes contratam apenas para cumprir a cota.",
+"fonte": "Texto elaborado para fins didáticos com base na Lei nº 13.146/2015."
+},
+{
+"rotulo": "TEXTO III",
+"texto": "\"Quando cheguei à entrevista, a vaga era no segundo andar e não havia elevador. Fizeram a conversa na calçada mesmo. Não fui chamado. Eu tinha o curso, tinha a vontade; faltava a rampa.\"",
+"fonte": "Depoimento fictício, elaborado para fins didáticos."
+}
+],
+"comentario": "Esperava-se discutir por que, apesar da Lei de Cotas (1991) e da LBI (2015), pessoas com deficiência seguem sub-representadas no trabalho: capacitismo, barreiras arquitetônicas e de transporte, exclusão escolar, contratação só para cumprir cota, falta de tecnologia assistiva e de adaptação de funções. Repertórios possíveis: modelo social da deficiência, Convenção da ONU sobre os Direitos das Pessoas com Deficiência, Erving Goffman (estigma), Norberto Bobbio (direitos que precisam ser efetivados). Fugir do tema seria falar só de acessibilidade urbana sem o trabalho. Exemplo de proposta: o Ministério do Trabalho (agente) deve ampliar a fiscalização e oferecer incentivo a empresas que adaptem postos e treinem equipes contra o capacitismo (ação e meio), a fim de garantir inclusão real, e não só o número da cota (finalidade). Zeram a redação: fuga total ao tema, não atendimento ao tipo dissertativo-argumentativo, texto com até 7 linhas, cópia predominante dos textos motivadores, parte desconectada do tema, impropérios ou desenhos, identificação fora do local, texto em língua estrangeira ou folha em branco. Desrespeitar os direitos humanos zera a competência 5.",
+"nucleo": [
+[
+"deficiência",
+"deficiente",
+"pcd",
+"capacitis"
+],
+[
+"trabalho",
+"emprego",
+"mercado",
+"vaga",
+"empresa",
+"contrata"
+]
+],
+"palavras": [
+"deficiência",
+"pessoas com deficiência",
+"pcd",
+"inclusão",
+"trabalho",
+"emprego",
+"mercado",
+"cotas",
+"acessibilidade",
+"capacitismo",
+"preconceito",
+"empresas",
+"lbi",
+"barreiras"
+]
+},
+{
+"id": "calor-cidades",
+"tema": "Caminhos para enfrentar os efeitos das ondas de calor nas cidades brasileiras",
+"instrucoes": "A partir da leitura dos textos motivadores e com base nos conhecimentos construídos ao longo de sua formação, redija texto dissertativo-argumentativo em modalidade escrita formal da língua portuguesa sobre o tema \"Caminhos para enfrentar os efeitos das ondas de calor nas cidades brasileiras\", apresentando proposta de intervenção que respeite os direitos humanos. Selecione, organize e relacione, de forma coerente e coesa, argumentos e fatos para defesa de seu ponto de vista.",
+"textos": [
+{
+"rotulo": "TEXTO I",
+"texto": "Todos têm direito ao meio ambiente ecologicamente equilibrado, bem de uso comum do povo e essencial à sadia qualidade de vida, impondo-se ao Poder Público e à coletividade o dever de defendê-lo e preservá-lo para as presentes e futuras gerações.",
+"fonte": "BRASIL. Constituição da República Federativa do Brasil de 1988, art. 225."
+},
+{
+"rotulo": "TEXTO II",
+"texto": "Bairros com muito asfalto, pouca arborização e casas pequenas e mal ventiladas registram temperaturas mais altas do que áreas verdes da mesma cidade, fenômeno conhecido como ilha de calor. Durante ondas de calor, idosos, crianças, trabalhadores ao ar livre e moradores de periferias estão entre os mais expostos a desidratação, problemas cardíacos e outros agravos à saúde.",
+"fonte": "Texto elaborado para fins didáticos."
+},
+{
+"rotulo": "TEXTO III",
+"texto": "[Infográfico descrito, com o título \"Duas ruas, um mesmo dia\". À esquerda, uma rua arborizada com o termômetro marcando temperatura amena; à direita, uma rua sem árvores, cercada de concreto, com o termômetro bem mais alto. Legenda: \"A sombra também é desigual\".]",
+"fonte": "Infográfico elaborado para fins didáticos."
+}
+],
+"comentario": "Esperava-se discutir as causas e os efeitos das ondas de calor nas cidades e sua relação com a desigualdade: mudanças climáticas, urbanização sem planejamento, falta de arborização, moradias precárias, trabalho exposto ao sol, sobrecarga do sistema de saúde. Repertórios possíveis: Acordo de Paris, relatórios do IPCC, conceito de racismo ambiental, Milton Santos (espaço urbano desigual), Ailton Krenak (Ideias para adiar o fim do mundo). Fugir do tema seria tratar de aquecimento global de forma genérica, sem as cidades. Exemplo de proposta: as prefeituras (agente) devem criar planos de arborização e abrir pontos de resfriamento com água e sombra nas periferias (ação), por meio de recursos de fundos climáticos e alertas pela Defesa Civil (meio), a fim de proteger os mais vulneráveis (finalidade). Zeram a redação: fuga total ao tema, não atendimento ao tipo dissertativo-argumentativo, texto com até 7 linhas, cópia predominante dos textos motivadores, parte desconectada do tema, impropérios ou desenhos, identificação fora do local, texto em língua estrangeira ou folha em branco. Desrespeitar os direitos humanos zera a competência 5.",
+"nucleo": [
+[
+"calor",
+"temperatura",
+"quente",
+"térmic",
+"aquecimento"
+],
+[
+"cidade",
+"urbano",
+"urbana",
+"bairro",
+"periferia",
+"rua"
+]
+],
+"palavras": [
+"calor",
+"ondas de calor",
+"temperatura",
+"cidades",
+"urbano",
+"ilha de calor",
+"arborização",
+"clima",
+"mudanças climáticas",
+"periferias",
+"saúde",
+"desigualdade",
+"árvores",
+"meio ambiente"
+]
+},
+{
+"id": "permanencia-ensino-medio",
+"tema": "Desafios para a permanência dos jovens no ensino médio no Brasil",
+"instrucoes": "A partir da leitura dos textos motivadores e com base nos conhecimentos construídos ao longo de sua formação, redija texto dissertativo-argumentativo em modalidade escrita formal da língua portuguesa sobre o tema \"Desafios para a permanência dos jovens no ensino médio no Brasil\", apresentando proposta de intervenção que respeite os direitos humanos. Selecione, organize e relacione, de forma coerente e coesa, argumentos e fatos para defesa de seu ponto de vista.",
+"textos": [
+{
+"rotulo": "TEXTO I",
+"texto": "A educação, direito de todos e dever do Estado e da família, será promovida e incentivada com a colaboração da sociedade, visando ao pleno desenvolvimento da pessoa, seu preparo para o exercício da cidadania e sua qualificação para o trabalho.",
+"fonte": "BRASIL. Constituição da República Federativa do Brasil de 1988, art. 205."
+},
+{
+"rotulo": "TEXTO II",
+"texto": "Lançado em 2024, o programa Pé-de-Meia oferece incentivo financeiro-educacional a estudantes de baixa renda do ensino médio público inscritos no Cadastro Único, com depósitos condicionados à matrícula, à frequência e à conclusão das etapas. A iniciativa parte de um diagnóstico conhecido: muitos jovens deixam a escola para ajudar na renda da família.",
+"fonte": "Texto elaborado para fins didáticos com base em informações do Ministério da Educação."
+},
+{
+"rotulo": "TEXTO III",
+"texto": "\"Eu saía do trabalho às seis e a aula começava às sete. Chegava cansado, sem jantar, e não entendia por que estava aprendendo aquilo. Um dia, simplesmente não fui mais.\"",
+"fonte": "Depoimento fictício, elaborado para fins didáticos."
+}
+],
+"comentario": "Esperava-se discutir por que muitos jovens abandonam o ensino médio: necessidade de trabalhar, gravidez na adolescência sem rede de apoio, distância e transporte, currículo pouco conectado à vida, violência, defasagem de aprendizagem. Repertórios possíveis: Paulo Freire (educação libertadora), Pierre Bourdieu (reprodução social), Anísio Teixeira, o Pé-de-Meia, a meta do Plano Nacional de Educação. Fugir do tema seria falar de educação em geral, sem o ensino médio ou sem a permanência. Exemplo de proposta: o MEC e as secretarias estaduais (agente) devem ampliar o apoio financeiro e o ensino técnico integrado, com busca ativa de alunos faltosos e horários flexíveis para quem trabalha (ação e meio), a fim de reduzir a evasão (finalidade). Zeram a redação: fuga total ao tema, não atendimento ao tipo dissertativo-argumentativo, texto com até 7 linhas, cópia predominante dos textos motivadores, parte desconectada do tema, impropérios ou desenhos, identificação fora do local, texto em língua estrangeira ou folha em branco. Desrespeitar os direitos humanos zera a competência 5.",
+"nucleo": [
+[
+"ensino médio",
+"escola",
+"estudante",
+"aluno",
+"educação"
+],
+[
+"permanência",
+"evasão",
+"abandon",
+"desist",
+"sair da escola",
+"deixar a escola",
+"conclu"
+]
+],
+"palavras": [
+"ensino médio",
+"escola",
+"evasão",
+"abandono",
+"permanência",
+"jovens",
+"estudantes",
+"educação",
+"trabalho",
+"renda",
+"pé-de-meia",
+"currículo",
+"desigualdade",
+"professores"
+]
+},
+{
+"id": "moradia-digna",
+"tema": "O desafio de garantir o direito à moradia digna nas cidades brasileiras",
+"instrucoes": "A partir da leitura dos textos motivadores e com base nos conhecimentos construídos ao longo de sua formação, redija texto dissertativo-argumentativo em modalidade escrita formal da língua portuguesa sobre o tema \"O desafio de garantir o direito à moradia digna nas cidades brasileiras\", apresentando proposta de intervenção que respeite os direitos humanos. Selecione, organize e relacione, de forma coerente e coesa, argumentos e fatos para defesa de seu ponto de vista.",
+"textos": [
+{
+"rotulo": "TEXTO I",
+"texto": "São direitos sociais a educação, a saúde, a alimentação, o trabalho, a moradia, o transporte, o lazer, a segurança, a previdência social, a proteção à maternidade e à infância, a assistência aos desamparados, na forma desta Constituição.",
+"fonte": "BRASIL. Constituição da República Federativa do Brasil de 1988, art. 6º."
+},
+{
+"rotulo": "TEXTO II",
+"texto": "O Estatuto da Cidade (Lei nº 10.257/2001) estabelece que a propriedade urbana deve cumprir sua função social. Mesmo assim, em muitas capitais convivem imóveis vazios em áreas centrais e famílias que moram em áreas de risco, em cortiços ou que comprometem grande parte da renda com aluguel, longe do trabalho e dos serviços públicos.",
+"fonte": "Texto elaborado para fins didáticos com base na Lei nº 10.257/2001."
+},
+{
+"rotulo": "TEXTO III",
+"texto": "[Fotografia descrita: em primeiro plano, barracos sobre uma encosta; ao fundo, prédios altos com placas de \"Aluga-se\" e \"Vende-se\". Legenda: \"Casa sem gente, gente sem casa\".]",
+"fonte": "Imagem descrita, elaborada para fins didáticos."
+}
+],
+"comentario": "Esperava-se discutir por que o direito à moradia (art. 6º da CF) não se efetiva: especulação imobiliária, imóveis ociosos, renda baixa e aluguel alto, ocupação de áreas de risco, falta de saneamento e de regularização fundiária, programas habitacionais longe dos centros. Repertórios possíveis: Estatuto da Cidade, Milton Santos, Carolina Maria de Jesus (Quarto de despejo), Raquel Rolnik, a função social da propriedade. Fugir do tema seria falar só de pessoas em situação de rua ou só de desastres, sem a moradia digna. Exemplo de proposta: o Ministério das Cidades e as prefeituras (agente) devem converter imóveis ociosos do centro em habitação social e acelerar a regularização fundiária (ação), por meio do IPTU progressivo e de parcerias com movimentos de moradia (meio), a fim de aproximar as famílias do trabalho e dos serviços (finalidade). Zeram a redação: fuga total ao tema, não atendimento ao tipo dissertativo-argumentativo, texto com até 7 linhas, cópia predominante dos textos motivadores, parte desconectada do tema, impropérios ou desenhos, identificação fora do local, texto em língua estrangeira ou folha em branco. Desrespeitar os direitos humanos zera a competência 5.",
+"nucleo": [
+[
+"moradia",
+"habitação",
+"habitacional",
+"casa",
+"lar",
+"imóve"
+],
+[
+"digna",
+"direito",
+"cidade",
+"urbana",
+"urbano",
+"acesso"
+]
+],
+"palavras": [
+"moradia",
+"habitação",
+"direito",
+"cidades",
+"digna",
+"aluguel",
+"especulação",
+"favelas",
+"periferias",
+"déficit",
+"imóveis",
+"estatuto da cidade",
+"função social",
+"renda"
+]
 }
 ];
