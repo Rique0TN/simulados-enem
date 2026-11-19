@@ -362,6 +362,16 @@
     if (!d5.length) d5.push("Proposta completa: agente, ação, meio, finalidade e detalhamento identificados.");
     res.comps.push({ n: 5, nome: "Proposta de intervenção", nota: c5, achados: a5, dicas: d5 });
 
+    // Texto curto: redações nota 1000 costumam ter 25–30 linhas e argumentos bem desenvolvidos.
+    var nw = palavras(texto).length, nl = contarLinhas(texto);
+    function teto(i, max, msg) { var c = res.comps[i]; if (c && c.nota > max) { c.nota = max; c.dicas.unshift(msg); } }
+    if (nl < 15 || nw < 180) {
+      teto(1, 120, "Texto curto: desenvolva mais o tema e o repertório (o ideal é escrever entre 25 e 30 linhas).");
+      teto(2, 120, "Texto curto: os argumentos ficam pouco desenvolvidos. Explique causas, consequências e exemplos.");
+    } else if (nl < 22 || nw < 280) {
+      teto(1, 160, "Para chegar a 200, aprofunde o repertório e ligue-o ao tema; textos nota 1000 costumam ter 25 a 30 linhas.");
+      teto(2, 160, "Para chegar a 200, desenvolva mais cada argumento (explique, exemplifique e conclua cada parágrafo).");
+    }
     res.total = res.comps.reduce(function (s, c) { return s + c.nota; }, 0);
     return res;
   }

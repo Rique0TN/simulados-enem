@@ -372,7 +372,9 @@
     t.textos.forEach(function (x) { h += "<div class='txt'><p class='rotulo'>" + esc(x.rotulo) + "</p><div class='texto-base'>" + renderTexto(x.texto) + "</div><p class='fonte'>" + esc(x.fonte) + "</p></div>"; });
     h += "</details>";
     h += "<label for='txt-redacao' class='enunciado'>Seu texto (mínimo 8 e máximo 30 linhas; deixe uma linha em branco ou quebre a linha entre parágrafos)</label>";
-    h += "<textarea id='txt-redacao' spellcheck='false' autocapitalize='sentences' " + (fin ? "readonly" : "") + " placeholder='Escreva aqui sua redação…'>" + esc(red.texto) + "</textarea>";
+    h += "<div class='folha'><div class='folha-cab'><span>Folha de redação</span><span>Título opcional</span></div>";
+    h += "<textarea id='txt-redacao' spellcheck='false' autocapitalize='sentences' " + (fin ? "readonly" : "") + " placeholder='Escreva aqui sua redação…'>" + esc(red.texto) + "</textarea></div>";
+    h += "<div class='medidor' aria-hidden='true'><div class='medidor-barra'><span id='medidor-fill'></span><i style='left:" + (8 / 30 * 100) + "%'></i></div><div class='medidor-leg'><span>0</span><span style='left:" + (8 / 30 * 100) + "%'>8 (mín.)</span><span>30 linhas</span></div></div>";
     h += "<div class='contadores' id='contadores' aria-live='polite'></div>";
     h += "<div class='acoes'><button class='btn btn-pri' id='btn-corrigir'>Corrigir redação</button></div>";
     h += "<p class='aviso-auto'>A nota é uma <strong>estimativa automática</strong> feita por regras (ortografia comum, estrutura, repertório, conectivos e elementos da proposta). Ela não substitui a correção oficial, feita por corretores humanos.</p>";
@@ -384,6 +386,7 @@
       var l = window.CorretorRedacao.contarLinhas(ta.value), w = window.CorretorRedacao.contarPalavras(ta.value), ps = ta.value.split(/\n+/).filter(function (p) { return p.trim(); }).length;
       var cl = l < 8 ? "alerta" : (l > 30 ? "alerta" : "ok");
       var msg = l < 8 ? " (mínimo 8 — abaixo disso a nota é zero)" : (l > 30 ? " (acima de 30 linhas o excedente é desconsiderado)" : "");
+      var fill = $("#medidor-fill"); if (fill) { fill.style.width = Math.min(100, l / 30 * 100) + "%"; fill.className = cl; }
       $("#contadores").innerHTML = "<span class='" + cl + "'>≈ " + l + " linha" + (l === 1 ? "" : "s") + msg + "</span><span>" + w + " palavras</span><span>" + ps + " parágrafo" + (ps === 1 ? "" : "s") + "</span>";
     }
     contar();
@@ -408,16 +411,27 @@
     if (grifo) { var g = esc(grifo); var i = e.toLowerCase().indexOf(g.toLowerCase()); if (i >= 0) e = e.slice(0, i) + "<mark>" + e.slice(i, i + g.length) + "</mark>" + e.slice(i + g.length); }
     return e;
   }
+  var NOMES_COMP = ["Domínio da norma-padrão", "Compreensão do tema e repertório", "Seleção e organização dos argumentos", "Coesão (mecanismos linguísticos)", "Proposta de intervenção"];
+  function faixaNota(n) { return n >= 800 ? "otima" : n >= 600 ? "boa" : n >= 400 ? "media" : "baixa"; }
   function htmlResRedacao(res) {
-    var h = "<h3 class='h3'>Nota estimada</h3><p class='nota-total'>" + res.total + " <small>/ 1000</small></p>";
-    h += "<p class='nota-peq'>≈ " + res.linhas + " linhas · " + res.palavras + " palavras · " + res.paragrafos + " parágrafos</p>";
+    var fx = faixaNota(res.total);
+    var rot = { otima: "Ótima", boa: "Boa", media: "Regular", baixa: "Precisa melhorar" }[fx];
+    var h = "<div class='nota-card nota-" + fx + "'><div><span class='nota-rot'>Nota estimada</span><p class='nota-total'>" + res.total + "<small>/1000</small></p><span class='nota-faixa'>" + (res.zerada ? "Nota zero" : rot) + "</span></div>";
+    h += "<ul class='nota-meta'><li><b>" + res.linhas + "</b> linhas</li><li><b>" + res.palavras + "</b> palavras</li><li><b>" + res.paragrafos + "</b> parágrafos</li></ul></div>";
     if (res.zerada) h += "<p class='zerada'>Redação com nota zero: " + esc(res.zerada) + ".</p>";
     res.avisos.forEach(function (a) { h += "<p class='aviso-auto'>" + esc(a) + "</p>"; });
-    if (!res.zerada) res.comps.forEach(function (c) {
-      h += "<div class='comp'><h4><span>Competência " + c.n + " · " + esc(c.nome) + "</span><span>" + c.nota + "/200</span></h4>";
+    h += "<h3 class='h3 comp-tit'>As 5 competências do ENEM</h3><div class='comp-barras'>";
+    [0, 1, 2, 3, 4].forEach(function (k) {
+      var c = res.comps[k] || { n: k + 1, nota: 0 }, pc = c.nota / 200 * 100;
+      h += "<div class='cb'><span class='cb-n'>C" + (k + 1) + "</span><span class='cb-nome'>" + esc(c.nome || NOMES_COMP[k]) + "</span><span class='cb-v'>" + c.nota + "</span><div class='cb-barra'><span class='nota-" + faixaNota(c.nota * 5) + "' style='width:" + pc + "%'></span></div></div>";
+    });
+    h += "</div>";
+    if (!res.zerada) res.comps.forEach(function (c, k) {
+      h += "<details class='comp'" + (c.nota < 160 ? " open" : "") + "><summary><span>C" + c.n + " · " + esc(c.nome || NOMES_COMP[k]) + "</span><span class='comp-v'>" + c.nota + "/200</span></summary>";
       if (c.achados.length) { h += "<ul>"; c.achados.forEach(function (a) { h += "<li>" + esc(a.msg) + (a.trecho ? "<br><q>" + destacar(a.trecho, a.grifo) + "</q>" : "") + "</li>"; }); h += "</ul>"; }
-      if (c.dicas.length) h += "<p><strong>O que melhorar:</strong> " + c.dicas.map(esc).join(" ") + "</p>";
-      h += "</div>";
+      else h += "<p class='nota-peq'>Nada a apontar nesta competência.</p>";
+      if (c.dicas.length) h += "<p class='comp-dica'><strong>O que melhorar:</strong> " + c.dicas.map(esc).join(" ") + "</p>";
+      h += "</details>";
     });
     return h;
   }
