@@ -187,6 +187,9 @@ function enquadrar() {
   vista.oy = r.height / 2 - (miny + h / 2) * vista.esc;
 }
 $('#btnCentralizar').onclick = () => { enquadrar(); render(); };
+function marcarCotas() { const b = $('#btnCotas'); b.style.opacity = banco.ocultarCotas ? .45 : 1; b.style.textDecoration = banco.ocultarCotas ? 'line-through' : 'none'; }
+$('#btnCotas').onclick = () => { banco.ocultarCotas = !banco.ocultarCotas; salvar(); marcarCotas(); render(); aviso(banco.ocultarCotas ? 'Medidas ocultas (a parede selecionada ainda mostra a sua)' : 'Medidas visíveis'); };
+marcarCotas();
 window.addEventListener('resize', () => proj && render());
 function zoomEm(sx, sy, fator) {
   const novo = Math.max(8, Math.min(1500, vista.esc * fator)); fator = novo / vista.esc;
@@ -288,6 +291,7 @@ function render() {
       const A = tela(a), B = tela(b), mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
       if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 52) return;
       const ps = s && sel.parede === i;
+      if (banco.ocultarCotas && !ps) return;
       const Ls = Math.hypot(B[0] - A[0], B[1] - A[1]); let nx = -(B[1] - A[1]) / Ls, ny = (B[0] - A[0]) / Ls;
       if (nx * (ctc[0] - mx) + ny * (ctc[1] - my) < 0) { nx = -nx; ny = -ny; }
       const off = Math.abs(nx) > Math.abs(ny) ? 34 : 18, lx = mx + nx * off, ly = my + ny * off;
@@ -673,7 +677,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=9').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=10').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
