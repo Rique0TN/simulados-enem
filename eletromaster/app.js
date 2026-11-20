@@ -308,7 +308,7 @@ function renderDica() {
     else t = 'Continue, ou arraste até o ponto verde pra fechar';
   } else if (!proj.comodos.length) t = 'Toque em Desenhar ou Retângulo para começar';
   else if (!sel.comodo) t = 'Toque num cômodo ou numa parede';
-  else if (sel.parede == null) t = 'Arraste os cantos azuis, ou toque numa parede pra mudar a medida ou pôr porta';
+  else if (sel.parede == null) t = 'Arraste cantos ou portas, ou toque numa parede pra medida e porta';
   $('#dica').textContent = t;
 }
 
@@ -354,7 +354,7 @@ function renderPainel() {
         <select id="selUn2"><option value="m" ${banco.unidade === 'm' ? 'selected' : ''}>m</option><option value="cm" ${banco.unidade === 'cm' ? 'selected' : ''}>cm</option></select>
         <button class="btn primario" id="btnAplicar">Aplicar</button><button class="btn" id="btnVoltarComodo">Cômodo</button></div>
       ${(c.portas || []).map((pt, k) => pt.parede === i ? `<div class="linha porta-linha" data-k="${k}">🚪 Porta ${fmt(pt.largura)} m · a <input class="num pPos" type="text" inputmode="decimal" value="${fmt(Math.max(0, pt.pos - pt.largura / 2))}"> m do canto
-        <button class="btn pFora">${pt.fora ? 'Abre pra fora' : 'Abre pra dentro'}</button><button class="btn pInv">⇆ Lado</button><button class="btn perigo pExc">✕</button></div>` : '').join('')}
+        <button class="btn pGirar">↻ Girar</button><button class="btn pFora">${pt.fora ? 'Pra fora' : 'Pra dentro'}</button><button class="btn pInv">⇆ Lado</button><button class="btn perigo pExc">✕</button></div>` : '').join('')}
       <div class="linha"><label>Porta</label><select id="selLargPorta">${[0.6, 0.7, 0.8, 0.9, 1.0, 1.2].map(v => `<option value="${v}" ${v === 0.8 ? 'selected' : ''}>${fmt(v)} m</option>`).join('')}</select>
         <button class="btn" id="btnAddPorta">+ Adicionar porta</button></div>`;
     p.querySelector('#btnAddPorta').onclick = () => {
@@ -364,6 +364,10 @@ function renderPainel() {
     };
     p.querySelectorAll('.porta-linha').forEach(row => {
       const pt = c.portas[+row.dataset.k];
+      row.querySelector('.pGirar').onclick = () => { // 4 posições: dentro-esq, dentro-dir, fora-dir, fora-esq
+        checkpoint(); const k = (pt.fora ? 2 : 0) + ((pt.fora ? !pt.inverter : pt.inverter) ? 1 : 0), n = (k + 1) % 4;
+        pt.fora = n >= 2; pt.inverter = pt.fora ? n === 2 : n === 1; gravar(); render();
+      };
       row.querySelector('.pFora').onclick = () => { checkpoint(); pt.fora = !pt.fora; gravar(); render(); };
       row.querySelector('.pInv').onclick = () => { checkpoint(); pt.inverter = !pt.inverter; gravar(); render(); };
       row.querySelector('.pExc').onclick = () => { checkpoint(); c.portas.splice(+row.dataset.k, 1); gravar(); render(); };
@@ -519,6 +523,10 @@ svg.addEventListener('pointerdown', e => {
     gesto = { tipo: 'traco', ini: s, inicio, novoInicio: !rascunho.length, moveu: false };
     return;
   }
+  if (modo === 'selecionar') {
+    const pe = portaEm(s);
+    if (pe && !(sel.comodo && comodo(sel.comodo).pts.some(p => dist(tela(p), s) < TOL_PX + 4))) { gesto = { tipo: 'porta', ini: s, c: pe.c, pt: pe.pt, moveu: false }; return; }
+  }
   if (modo === 'selecionar' && sel.comodo) {
     const c = comodo(sel.comodo);
     const vi = c.pts.findIndex(p => dist(tela(p), s) < TOL_PX + 4);
@@ -540,10 +548,20 @@ svg.addEventListener('pointermove', e => {
     return;
   }
   if (!gesto.moveu && dist(s, gesto.ini) < 7) return;
-  if (!gesto.moveu) { gesto.moveu = true; if (gesto.tipo === 'vertice' || gesto.tipo === 'mover') checkpoint(); }
+  if (!gesto.moveu) { gesto.moveu = true; if (gesto.tipo === 'vertice' || gesto.tipo === 'mover' || gesto.tipo === 'porta') checkpoint(); }
   if (gesto.tipo === 'traco') {
     if (gesto.novoInicio) { rascunho.push(gesto.inicio); gesto.novoInicio = false; }
     cursor = imantar(mundo(s), rascunho[rascunho.length - 1]); render(); return;
+  }
+  if (gesto.tipo === 'porta') {
+    // arrasta a porta pra qualquer parede do cômodo, deslizando ao longo dela
+    const c = gesto.c, pt = gesto.pt, w = mundo(s); let melhor = null, md = Infinity;
+    c.pts.forEach((a, i) => {
+      const b = c.pts[(i + 1) % c.pts.length], L = dist(a, b); if (L < pt.largura) return;
+      const d = distSeg(w, a, b); if (d < md) { md = d; const t = ((w[0] - a[0]) * (b[0] - a[0]) + (w[1] - a[1]) * (b[1] - a[1])) / L; melhor = { i, pos: Math.max(pt.largura / 2, Math.min(L - pt.largura / 2, Math.round(t / GRADE) * GRADE)) }; }
+    });
+    if (melhor) { pt.parede = melhor.i; pt.pos = melhor.pos; sel = { comodo: c.id, parede: melhor.i }; }
+    render(); return;
   }
   if (gesto.tipo === 'pan') { vista.ox = gesto.ox0 + s[0] - gesto.ini[0]; vista.oy = gesto.oy0 + s[1] - gesto.ini[1]; render(); }
   else if (gesto.tipo === 'vertice') {
@@ -575,7 +593,8 @@ function fimPonteiro(e) {
   if (gesto && gesto.tipo === 'pinca') { if (ponteiros.size === 0) gesto = null; else gesto = { tipo: 'nada', moveu: true }; return; }
   if (!gesto) return;
   const g = gesto; gesto = null;
-  if ((g.tipo === 'vertice' || g.tipo === 'mover') && g.moveu) { gravar(); render(); return; }
+  if ((g.tipo === 'vertice' || g.tipo === 'mover' || g.tipo === 'porta') && g.moveu) { gravar(); render(); return; }
+  if (g.tipo === 'porta') { sel = { comodo: g.c.id, parede: g.pt.parede }; render(); return; }
   if (g.tipo === 'traco' && g.moveu) {
     const u = rascunho[rascunho.length - 1], fim = imantar(mundo(s), u); cursor = null;
     if (rascunho.length >= 3 && dist(tela(fim), tela(rascunho[0])) < TOL_PX + 6) { render(); fecharRascunho(); return; }
@@ -589,6 +608,16 @@ svg.addEventListener('pointerup', fimPonteiro);
 svg.addEventListener('pointercancel', fimPonteiro);
 svg.addEventListener('wheel', e => { e.preventDefault(); const s = pos(e); zoomEm(s[0], s[1], Math.exp(-e.deltaY * 0.0015)); render(); }, { passive: false });
 
+function portaEm(s) {
+  let melhor = null, md = Infinity;
+  proj.comodos.forEach(c => (c.portas || []).forEach(pt => {
+    const g = geoPorta(c, pt); if (!g) return;
+    const m = tela([(g.p0[0] + g.p1[0]) / 2 + g.nrm[0] * g.w / 2, (g.p0[1] + g.p1[1]) / 2 + g.nrm[1] * g.w / 2]);
+    const d = dist(m, s), raio = Math.max(g.w * vista.esc * 0.6, TOL_PX + 6);
+    if (d < raio && d < md) { md = d; melhor = { c, pt }; }
+  }));
+  return melhor;
+}
 function paredeEm(s) {
   let melhor = null, md = TOL_PX;
   const ordem = sel.comodo ? [comodo(sel.comodo), ...proj.comodos.filter(c => c.id !== sel.comodo)] : proj.comodos;
