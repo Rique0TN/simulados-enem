@@ -37,6 +37,7 @@ h1{font-size:22px;margin-bottom:14px}
 .num{width:96px;text-align:right}
 .medidas{font-size:15px}
 .medidas b{color:var(--amarelo)}
+.porta-linha{font-size:14px}.porta-linha .btn{padding:6px 10px;font-size:13px}
 .setas{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(2,40px);gap:4px}
 .setas button{border:1px solid var(--linha);background:var(--card);border-radius:8px;font-size:18px;cursor:pointer}
 .barra{display:flex;background:#0b1424;border-top:1px solid var(--linha);padding-bottom:env(safe-area-inset-bottom)}

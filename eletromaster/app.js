@@ -200,6 +200,33 @@ function imantar(w, ref, excetoId) {
   return [g(x), g(y)];
 }
 
+// ---------- portas ----------
+// porta = { id, parede, pos (m do canto inicial até o centro), largura, fora (abre pra fora), inverter (dobradiça do outro lado) }
+function geoPorta(c, pt) {
+  const n = c.pts.length, a = c.pts[pt.parede % n], b = c.pts[(pt.parede + 1) % n], L = dist(a, b);
+  if (L < 1e-6) return null;
+  const w = Math.min(pt.largura, L), pos = Math.max(w / 2, Math.min(L - w / 2, pt.pos));
+  const d = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  let nrm = [-d[1], d[0]];
+  const ct = centroide(c.pts), mid = [a[0] + d[0] * pos, a[1] + d[1] * pos];
+  if ((ct[0] - mid[0]) * nrm[0] + (ct[1] - mid[1]) * nrm[1] < 0) nrm = [-nrm[0], -nrm[1]];
+  if (pt.fora) nrm = [-nrm[0], -nrm[1]];
+  const p0 = [a[0] + d[0] * (pos - w / 2), a[1] + d[1] * (pos - w / 2)], p1 = [a[0] + d[0] * (pos + w / 2), a[1] + d[1] * (pos + w / 2)];
+  const h = pt.inverter ? p1 : p0, u = pt.inverter ? [-d[0], -d[1]] : d;
+  return { p0, p1, h, u, nrm, w };
+}
+function svgPorta(c, pt, destaque) {
+  const g = geoPorta(c, pt); if (!g) return '';
+  const A = tela(g.p0), B = tela(g.p1), H = tela(g.h);
+  const folha = tela([g.h[0] + g.nrm[0] * g.w, g.h[1] + g.nrm[1] * g.w]);
+  let arco = [];
+  for (let k = 0; k <= 16; k++) { const t = k / 16 * Math.PI / 2, q = [g.h[0] + g.w * (Math.cos(t) * g.nrm[0] + Math.sin(t) * g.u[0]), g.h[1] + g.w * (Math.cos(t) * g.nrm[1] + Math.sin(t) * g.u[1])]; arco.push(tela(q).map(v => v.toFixed(1)).join(',')); }
+  const cor = destaque ? '#ffc531' : '#e8eef7';
+  return `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#0d1626" stroke-width="7"/>
+    <line x1="${H[0]}" y1="${H[1]}" x2="${folha[0]}" y2="${folha[1]}" stroke="${cor}" stroke-width="2.5"/>
+    <polyline points="${arco.join(' ')}" fill="none" stroke="${cor}" stroke-width="1.3" stroke-dasharray="4 3"/>`;
+}
+
 // ---------- desenho ----------
 function render() {
   if (!proj) return;
@@ -222,18 +249,19 @@ function render() {
     const d = c.pts.map(p => tela(p).map(v => v.toFixed(1)).join(',')).join(' ');
     h += `<polygon points="${d}" fill="${cor}" fill-opacity="${s ? .22 : .12}" stroke="#e8eef7" stroke-width="${s ? 4 : 3}" stroke-linejoin="round"/>`;
   });
+  proj.comodos.forEach(c => (c.portas || []).forEach(pt => h += svgPorta(c, pt, c.id === sel.comodo && sel.parede === pt.parede)));
   proj.comodos.forEach(c => {
     const s = c.id === sel.comodo;
     // cotas das paredes
     c.pts.forEach((a, i) => {
       const b = c.pts[(i + 1) % c.pts.length], L = dist(a, b);
       const A = tela(a), B = tela(b), mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
-      if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 46) return;
+      if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 52) return;
       const ps = s && sel.parede === i;
       if (ps) h += `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#ffc531" stroke-width="6" stroke-linecap="round"/>`;
       let ang = Math.atan2(B[1] - A[1], B[0] - A[0]) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
-      h += `<g transform="translate(${mx},${my}) rotate(${ang})"><rect x="-27" y="-10" width="54" height="18" rx="5" fill="#0d1626" fill-opacity=".85"/>
-        <text y="3.5" text-anchor="middle" font-size="12" font-weight="600" fill="${ps ? '#ffc531' : '#cfe0f5'}">${fmt(L)}</text></g>`;
+      h += `<g transform="translate(${mx},${my}) rotate(${ang})"><rect x="-30" y="-11" width="60" height="21" rx="6" fill="#0d1626" fill-opacity=".9"/>
+        <text y="4.5" text-anchor="middle" font-size="14" font-weight="700" fill="${ps ? '#ffc531' : '#cfe0f5'}">${fmt(L)}</text></g>`;
     });
     // nome + área
     const ct = tela(centroide(c.pts));
@@ -249,10 +277,10 @@ function render() {
     if (prev) {
       const ult = pts[pts.length - 1];
       h += `<line x1="${ult[0]}" y1="${ult[1]}" x2="${prev[0]}" y2="${prev[1]}" stroke="#ffc531" stroke-width="2" stroke-dasharray="6 5"/>`;
-      h += `<text x="${prev[0] + 10}" y="${prev[1] - 10}" font-size="13" font-weight="700" fill="#ffc531">${fmt(dist(rascunho[rascunho.length - 1], cursor))} m</text>`;
+      h += `<text x="${prev[0] + 10}" y="${prev[1] - 10}" font-size="14" font-weight="700" fill="#ffc531">${fmt(dist(rascunho[rascunho.length - 1], cursor))}</text>`;
     }
     rascunho.forEach((p, i) => {
-      if (i) { const a = tela(rascunho[i - 1]), b = tela(p); h += `<text x="${(a[0] + b[0]) / 2}" y="${(a[1] + b[1]) / 2 - 8}" text-anchor="middle" font-size="12" font-weight="600" fill="#ffc531">${fmt(dist(rascunho[i - 1], p))}</text>`; }
+      if (i) { const a = tela(rascunho[i - 1]), b = tela(p); h += `<text x="${(a[0] + b[0]) / 2}" y="${(a[1] + b[1]) / 2 - 8}" text-anchor="middle" font-size="14" font-weight="700" fill="#ffc531">${fmt(dist(rascunho[i - 1], p))}</text>`; }
     });
     pts.forEach((p, i) => h += `<circle cx="${p[0]}" cy="${p[1]}" r="${i === 0 && rascunho.length >= 3 ? 10 : 6}" fill="${i === 0 ? '#3ddc97' : '#ffc531'}" stroke="#0d1626" stroke-width="2"/>`);
   }
@@ -265,12 +293,12 @@ function render() {
 function renderDica() {
   let t = '';
   if (modo === 'desenhar') {
-    if (!rascunho.length) t = 'Toque no primeiro canto do cômodo';
-    else if (rascunho.length < 3) t = 'Toque no próximo canto, ou digite a medida e escolha a direção';
-    else t = 'Toque no ponto verde para fechar o cômodo';
+    if (!rascunho.length) t = 'Arraste o dedo pra desenhar a primeira parede';
+    else if (rascunho.length < 3) t = 'Arraste de novo pra próxima parede (ou digite a medida e use as setas)';
+    else t = 'Continue, ou arraste até o ponto verde pra fechar';
   } else if (!proj.comodos.length) t = 'Toque em Desenhar ou Retângulo para começar';
   else if (!sel.comodo) t = 'Toque num cômodo ou numa parede';
-  else if (sel.parede == null) t = 'Arraste os cantos azuis, ou toque numa parede pra mudar a medida';
+  else if (sel.parede == null) t = 'Arraste os cantos azuis, ou toque numa parede pra mudar a medida ou pôr porta';
   $('#dica').textContent = t;
 }
 
@@ -314,7 +342,27 @@ function renderPainel() {
     p.innerHTML = `<div class="linha medidas">${esc(c.nome)} · parede ${i + 1}: <b>${fmt(L)} m</b></div>
       <div class="linha"><label>Nova medida</label><input id="inParede" class="num" type="text" inputmode="decimal" value="${val}">
         <select id="selUn2"><option value="m" ${banco.unidade === 'm' ? 'selected' : ''}>m</option><option value="cm" ${banco.unidade === 'cm' ? 'selected' : ''}>cm</option></select>
-        <button class="btn primario" id="btnAplicar">Aplicar</button><button class="btn" id="btnVoltarComodo">Cômodo</button></div>`;
+        <button class="btn primario" id="btnAplicar">Aplicar</button><button class="btn" id="btnVoltarComodo">Cômodo</button></div>
+      ${(c.portas || []).map((pt, k) => pt.parede === i ? `<div class="linha porta-linha" data-k="${k}">🚪 Porta ${fmt(pt.largura)} m · a <input class="num pPos" type="text" inputmode="decimal" value="${fmt(Math.max(0, pt.pos - pt.largura / 2))}"> m do canto
+        <button class="btn pFora">${pt.fora ? 'Abre pra fora' : 'Abre pra dentro'}</button><button class="btn pInv">⇆ Lado</button><button class="btn perigo pExc">✕</button></div>` : '').join('')}
+      <div class="linha"><label>Porta</label><select id="selLargPorta">${[0.6, 0.7, 0.8, 0.9, 1.0, 1.2].map(v => `<option value="${v}" ${v === 0.8 ? 'selected' : ''}>${fmt(v)} m</option>`).join('')}</select>
+        <button class="btn" id="btnAddPorta">+ Adicionar porta</button></div>`;
+    p.querySelector('#btnAddPorta').onclick = () => {
+      const w = parseFloat(p.querySelector('#selLargPorta').value);
+      if (w > L + 1e-6) { alert('A porta é maior que a parede.'); return; }
+      checkpoint(); c.portas = c.portas || []; c.portas.push({ id: uid(), parede: i, pos: L / 2, largura: w, fora: false, inverter: false }); gravar(); render();
+    };
+    p.querySelectorAll('.porta-linha').forEach(row => {
+      const pt = c.portas[+row.dataset.k];
+      row.querySelector('.pFora').onclick = () => { checkpoint(); pt.fora = !pt.fora; gravar(); render(); };
+      row.querySelector('.pInv').onclick = () => { checkpoint(); pt.inverter = !pt.inverter; gravar(); render(); };
+      row.querySelector('.pExc').onclick = () => { checkpoint(); c.portas.splice(+row.dataset.k, 1); gravar(); render(); };
+      row.querySelector('.pPos').onchange = e => {
+        const v = parseFloat(String(e.target.value).replace(',', '.'));
+        if (!isFinite(v) || v < 0) { render(); return; }
+        checkpoint(); pt.pos = Math.min(L - pt.largura / 2, v + pt.largura / 2); gravar(); render();
+      };
+    });
     p.querySelector('#selUn2').onchange = e => { banco.unidade = e.target.value; salvar(); render(); };
     const aplicar = () => {
       const N = lerMedida(p.querySelector('#inParede').value, banco.unidade);
@@ -417,7 +465,7 @@ $('#btnComodos').onclick = () => {
   const linhas = proj.comodos.map(c => { const a = area(c.pts), p = perimetro(c.pts); ta += a; tp += p; return `<tr class="clicavel" data-id="${c.id}"><td>${esc(c.nome)}</td><td>${nomeTipo(c.tipo)}</td><td class="n">${fmt(a)}</td><td class="n">${fmt(p)}</td></tr>`; }).join('');
   abrirModal(`<h2>Cômodos de ${esc(proj.nome)}</h2>
     <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th></tr>${linhas}
-    <tr class="total"><td colspan="2">Total</td><td class="n">${fmt(ta)}</td><td class="n">—</td></tr></table>
+    <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td></tr></table>
     <div class="botoes"><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal;
   $('#modalConteudo').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { fecharModal(); definirModo('selecionar'); sel = { comodo: tr.dataset.id, parede: null }; render(); });
@@ -456,6 +504,12 @@ svg.addEventListener('pointerdown', e => {
   if (ponteiros.size > 2) return;
   const s = pos(e), w = mundo(s);
   gesto = { tipo: 'pan', ini: s, ox0: vista.ox, oy0: vista.oy, moveu: false };
+  if (modo === 'desenhar') {
+    // arrastar o dedo desenha a parede: começa no último canto (ou onde tocou, se for a primeira)
+    const inicio = rascunho.length ? rascunho[rascunho.length - 1] : imantar(w, null);
+    gesto = { tipo: 'traco', ini: s, inicio, novoInicio: !rascunho.length, moveu: false };
+    return;
+  }
   if (modo === 'selecionar' && sel.comodo) {
     const c = comodo(sel.comodo);
     const vi = c.pts.findIndex(p => dist(tela(p), s) < TOL_PX + 4);
@@ -478,10 +532,20 @@ svg.addEventListener('pointermove', e => {
   }
   if (!gesto.moveu && dist(s, gesto.ini) < 7) return;
   if (!gesto.moveu) { gesto.moveu = true; if (gesto.tipo === 'vertice' || gesto.tipo === 'mover') checkpoint(); }
+  if (gesto.tipo === 'traco') {
+    if (gesto.novoInicio) { rascunho.push(gesto.inicio); gesto.novoInicio = false; }
+    cursor = imantar(mundo(s), rascunho[rascunho.length - 1]); render(); return;
+  }
   if (gesto.tipo === 'pan') { vista.ox = gesto.ox0 + s[0] - gesto.ini[0]; vista.oy = gesto.oy0 + s[1] - gesto.ini[1]; render(); }
   else if (gesto.tipo === 'vertice') {
-    const c = gesto.c, n = c.pts.length, viz = c.pts[(gesto.vi - 1 + n) % n];
-    const novo = imantar(mundo(s), viz, c.id);
+    const c = gesto.c, n = c.pts.length, ant = c.pts[(gesto.vi - 1 + n) % n], prox = c.pts[(gesto.vi + 1) % n];
+    let novo = imantar(mundo(s), null, c.id);
+    const tolA = 12 / vista.esc;
+    if (!todosVertices(c.id).some(v => v[0] === novo[0] && v[1] === novo[1])) { // não estava preso num canto
+      const w = mundo(s);
+      novo = [Math.abs(w[0] - ant[0]) < tolA ? ant[0] : Math.abs(w[0] - prox[0]) < tolA ? prox[0] : novo[0],
+              Math.abs(w[1] - ant[1]) < tolA ? ant[1] : Math.abs(w[1] - prox[1]) < tolA ? prox[1] : novo[1]];
+    }
     // leva junto cantos de outros cômodos que estavam colados neste
     proj.comodos.forEach(o => { if (o.id !== c.id) o.pts.forEach((p, k) => { if (dist(p, gesto.orig) < 0.002) o.pts[k] = novo.slice(); }); });
     c.pts[gesto.vi] = novo; gesto.orig = novo.slice(); render();
@@ -503,6 +567,13 @@ function fimPonteiro(e) {
   if (!gesto) return;
   const g = gesto; gesto = null;
   if ((g.tipo === 'vertice' || g.tipo === 'mover') && g.moveu) { gravar(); render(); return; }
+  if (g.tipo === 'traco' && g.moveu) {
+    const u = rascunho[rascunho.length - 1], fim = imantar(mundo(s), u); cursor = null;
+    if (rascunho.length >= 3 && dist(tela(fim), tela(rascunho[0])) < TOL_PX + 6) { render(); fecharRascunho(); return; }
+    if (dist(u, fim) >= 0.05) rascunho.push(fim);
+    else if (rascunho.length === 1) rascunho = [];
+    render(); return;
+  }
   if (!g.moveu && e.type === 'pointerup') toque(s);
 }
 svg.addEventListener('pointerup', fimPonteiro);
