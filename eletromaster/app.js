@@ -24,6 +24,9 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
 function area(pts) { let s = 0; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; s += a[0] * b[1] - b[0] * a[1]; } return Math.abs(s) / 2; }
+// NBR 5410 (9.5.2.1): ao menos 1 ponto de luz no teto por cômodo, com interruptor;
+// carga mínima: até 6 m² = 100 VA; acima disso, 100 VA + 60 VA a cada 4 m² inteiros
+function iluminacao(pts) { const a = area(pts); const va = a <= 6 ? 100 : 100 + 60 * Math.floor((a - 6 + 1e-9) / 4); return { pontos: 1, va }; }
 function perimetro(pts) { let s = 0; for (let i = 0; i < pts.length; i++) s += dist(pts[i], pts[(i + 1) % pts.length]); return s; }
 function centroide(pts) {
   let A = 0, cx = 0, cy = 0;
@@ -291,7 +294,9 @@ function render() {
     // nome + área
     const ct = tela(centroide(c.pts));
     h += `<text x="${ct[0]}" y="${ct[1] - 4}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">${esc(c.nome)}</text>
-      <text x="${ct[0]}" y="${ct[1] + 13}" text-anchor="middle" font-size="12" fill="#ffc531">${fmt(area(c.pts))} m²</text>`;
+      <text x="${ct[0]}" y="${ct[1] + 13}" text-anchor="middle" font-size="12" fill="#ffc531">${fmt(area(c.pts))} m²</text>
+      <g transform="translate(${ct[0]},${ct[1] - 34})"><circle r="9" fill="#0d1626" stroke="#ffd84a" stroke-width="2"/><path d="M-6,-6L6,6M6,-6L-6,6" stroke="#ffd84a" stroke-width="2"/>
+      <text x="13" y="4" font-size="11" fill="#ffd84a">${iluminacao(c.pts).va} VA</text></g>`;
     if (s && modo === 'selecionar') c.pts.forEach(p => { const P = tela(p); h += `<circle cx="${P[0]}" cy="${P[1]}" r="7" fill="#3b9cff" stroke="#fff" stroke-width="2"/>`; });
   });
   if (modo === 'desenhar') proj.comodos.forEach(c => c.pts.forEach(p => { const P = tela(p); h += `<circle cx="${P[0]}" cy="${P[1]}" r="7" fill="#3b9cff" stroke="#fff" stroke-width="2"/>`; }));
@@ -406,6 +411,7 @@ function renderPainel() {
   }
   p.innerHTML = `<div class="linha"><input id="inNome" type="text" value="${esc(c.nome)}" maxlength="40"><select id="selTipo">${opcoesTipo(c.tipo)}</select></div>
     <div class="linha medidas">Área <b>${fmt(area(c.pts))} m²</b> · Perímetro <b>${fmt(perimetro(c.pts))} m</b> · ${c.pts.length} paredes</div>
+    <div class="linha medidas">💡 Iluminação (NBR 5410): mín. <b>1 ponto no teto</b> com interruptor · carga mín. <b>${iluminacao(c.pts).va} VA</b></div>
     <div class="linha"><button class="btn" id="btnDup">Duplicar</button><button class="btn perigo" id="btnExc">Excluir</button></div>`;
   p.querySelector('#inNome').onchange = e => { const v = e.target.value.trim(); if (!v) return; checkpoint(); c.nome = v; gravar(); render(); };
   p.querySelector('#selTipo').onchange = e => {
@@ -491,11 +497,12 @@ $('#btnRetangulo').onclick = () => {
 // ---------- lista de cômodos ----------
 $('#btnComodos').onclick = () => {
   if (!proj.comodos.length) { abrirModal('<h2>Cômodos</h2><div class="vazio">Nenhum cômodo desenhado ainda.</div><div class="botoes"><button class="btn" id="mCanc">Fechar</button></div>'); $('#mCanc').onclick = fecharModal; return; }
-  let ta = 0, tp = 0;
-  const linhas = proj.comodos.map(c => { const a = area(c.pts), p = perimetro(c.pts); ta += a; tp += p; return `<tr class="clicavel" data-id="${c.id}"><td>${esc(c.nome)}</td><td>${nomeTipo(c.tipo)}</td><td class="n">${fmt(a)}</td><td class="n">${fmt(p)}</td></tr>`; }).join('');
+  let ta = 0, tp = 0, tv = 0;
+  const linhas = proj.comodos.map(c => { const a = area(c.pts), p = perimetro(c.pts), v = iluminacao(c.pts).va; ta += a; tp += p; tv += v; return `<tr class="clicavel" data-id="${c.id}"><td>${esc(c.nome)}</td><td>${nomeTipo(c.tipo)}</td><td class="n">${fmt(a)}</td><td class="n">${fmt(p)}</td><td class="n">${v}</td></tr>`; }).join('');
   abrirModal(`<h2>Cômodos de ${esc(proj.nome)}</h2>
-    <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th></tr>${linhas}
-    <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td></tr></table>
+    <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th><th class="n">Luz (VA)</th></tr>${linhas}
+    <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td><td class="n">${tv}</td></tr></table>
+    <p class="aviso" style="margin-top:10px">Luz: mínimo pela NBR 5410 (1 ponto no teto por cômodo; 100 VA até 6 m², +60 VA a cada 4 m² inteiros). Ferramenta de apoio: confira com profissional habilitado.</p>
     <div class="botoes"><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal;
   $('#modalConteudo').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { fecharModal(); definirModo('selecionar'); sel = { comodo: tr.dataset.id, parede: null }; render(); });
@@ -663,4 +670,4 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=7').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=8').catch(() => {});
