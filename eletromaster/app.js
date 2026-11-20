@@ -281,14 +281,17 @@ function render() {
   proj.comodos.forEach(c => (c.portas || []).forEach(pt => h += svgPorta(c, pt, c.id === sel.comodo && sel.parede === pt.parede)));
   proj.comodos.forEach(c => {
     const s = c.id === sel.comodo;
-    // cotas das paredes
+    // cotas das paredes: sempre na horizontal (fácil de ler) e um pouco pra dentro do cômodo
+    const ctc = tela(centroide(c.pts));
     c.pts.forEach((a, i) => {
       const b = c.pts[(i + 1) % c.pts.length], L = dist(a, b);
       const A = tela(a), B = tela(b), mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
       if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 52) return;
       const ps = s && sel.parede === i;
-      let ang = Math.atan2(B[1] - A[1], B[0] - A[0]) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
-      h += `<g transform="translate(${mx},${my}) rotate(${ang})"><rect x="-30" y="-11" width="60" height="21" rx="6" fill="#0d1626" fill-opacity=".9"/>
+      const Ls = Math.hypot(B[0] - A[0], B[1] - A[1]); let nx = -(B[1] - A[1]) / Ls, ny = (B[0] - A[0]) / Ls;
+      if (nx * (ctc[0] - mx) + ny * (ctc[1] - my) < 0) { nx = -nx; ny = -ny; }
+      const off = Math.abs(nx) > Math.abs(ny) ? 34 : 18, lx = mx + nx * off, ly = my + ny * off;
+      h += `<g transform="translate(${lx.toFixed(1)},${ly.toFixed(1)})"><rect x="-27" y="-11" width="54" height="21" rx="6" fill="#0d1626" fill-opacity=".9"/>
         <text y="4.5" text-anchor="middle" font-size="14" font-weight="700" fill="${ps ? '#ffc531' : '#cfe0f5'}">${fmt(L)}</text></g>`;
     });
     // nome + área
@@ -503,8 +506,8 @@ $('#btnComodos').onclick = () => {
     <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th><th class="n">Luz (VA)</th></tr>${linhas}
     <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td><td class="n">${tv}</td></tr></table>
     <p class="aviso" style="margin-top:10px">Luz: mínimo pela NBR 5410 (1 ponto no teto por cômodo; 100 VA até 6 m², +60 VA a cada 4 m² inteiros). Ferramenta de apoio: confira com profissional habilitado.</p>
-    <div class="botoes"><button class="btn" id="mCanc">Fechar</button></div>`);
-  $('#mCanc').onclick = fecharModal;
+    <div class="botoes"><button class="btn" id="mImg">📷 Imagem da planta</button><button class="btn" id="mCanc">Fechar</button></div>`);
+  $('#mCanc').onclick = fecharModal; $('#mImg').onclick = () => { fecharModal(); exportarImagem(); };
   $('#modalConteudo').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { fecharModal(); definirModo('selecionar'); sel = { comodo: tr.dataset.id, parede: null }; render(); });
 };
 
@@ -670,4 +673,26 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=8').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=9').catch(() => {});
+
+// ---------- exportar imagem (PNG) da planta ----------
+function exportarImagem() {
+  const svg = $('#svg'), W = svg.clientWidth, H = svg.clientHeight;
+  const sel0 = sel, modo0 = modo; sel = { comodo: null, parede: null }; render(); // sem seleção na imagem
+  const xml = new XMLSerializer().serializeToString(svg).replace('<svg', `<svg width="${W}" height="${H}" style="font-family:-apple-system,Helvetica,Arial,sans-serif"`);
+  sel = sel0; modo = modo0; render();
+  const img = new Image();
+  img.onload = () => {
+    const k = 2, cv = document.createElement('canvas'); cv.width = W * k; cv.height = H * k;
+    const g = cv.getContext('2d'); g.fillStyle = '#0b1424'; g.fillRect(0, 0, cv.width, cv.height); g.scale(k, k); g.drawImage(img, 0, 0);
+    g.fillStyle = '#8fa3bf'; g.font = '12px sans-serif'; g.fillText(`EletroMaster · ${proj.nome}`, 10, H - 10);
+    cv.toBlob(async b => {
+      const nome = `${proj.nome.replace(/[^\w\- ]+/g, '').trim() || 'planta'}.png`, f = new File([b], nome, { type: 'image/png' });
+      try { if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: proj.nome }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+      aviso('Imagem gerada.');
+    }, 'image/png');
+  };
+  img.onerror = () => aviso('Não consegui gerar a imagem.');
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+}
