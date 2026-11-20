@@ -249,6 +249,7 @@ function render() {
     const d = c.pts.map(p => tela(p).map(v => v.toFixed(1)).join(',')).join(' ');
     h += `<polygon points="${d}" fill="${cor}" fill-opacity="${s ? .22 : .12}" stroke="#e8eef7" stroke-width="${s ? 4 : 3}" stroke-linejoin="round"/>`;
   });
+  { const c = sel.comodo && comodo(sel.comodo); if (c && sel.parede != null) { const A = tela(c.pts[sel.parede]), B = tela(c.pts[(sel.parede + 1) % c.pts.length]); h += `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#ffc531" stroke-width="6" stroke-linecap="round"/>`; } }
   proj.comodos.forEach(c => (c.portas || []).forEach(pt => h += svgPorta(c, pt, c.id === sel.comodo && sel.parede === pt.parede)));
   proj.comodos.forEach(c => {
     const s = c.id === sel.comodo;
@@ -258,7 +259,6 @@ function render() {
       const A = tela(a), B = tela(b), mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
       if (Math.hypot(B[0] - A[0], B[1] - A[1]) < 52) return;
       const ps = s && sel.parede === i;
-      if (ps) h += `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#ffc531" stroke-width="6" stroke-linecap="round"/>`;
       let ang = Math.atan2(B[1] - A[1], B[0] - A[0]) * 180 / Math.PI; if (ang > 90) ang -= 180; if (ang < -90) ang += 180;
       h += `<g transform="translate(${mx},${my}) rotate(${ang})"><rect x="-30" y="-11" width="60" height="21" rx="6" fill="#0d1626" fill-opacity=".9"/>
         <text y="4.5" text-anchor="middle" font-size="14" font-weight="700" fill="${ps ? '#ffc531' : '#cfe0f5'}">${fmt(L)}</text></g>`;
