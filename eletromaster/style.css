@@ -60,3 +60,6 @@ td.n,th.n{text-align:right}
 tr.total td{font-weight:700;border-bottom:none}
 tr.clicavel{cursor:pointer}
 @media (min-width:900px){.modal{align-items:center}.modal-caixa{border-radius:18px}}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 64px);transform:translate(-50%,-20px);background:#ff5d5d;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:90%;text-align:center}
+.toast.vis{opacity:1;transform:translate(-50%,0)}
+.btn.perigoso{background:#ff5d5d;border-color:#ff5d5d}

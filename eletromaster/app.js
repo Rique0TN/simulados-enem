@@ -62,7 +62,7 @@ function lerMedida(txt, unidadePadrao) {
 // ---------- armazenamento ----------
 let banco = carregar();
 function carregar() { try { return JSON.parse(localStorage.getItem(CHAVE)) || { projetos: [], unidade: 'm' }; } catch { return { projetos: [], unidade: 'm' }; } }
-function salvar() { try { localStorage.setItem(CHAVE, JSON.stringify(banco)); } catch (e) { alert('Não consegui salvar no aparelho: ' + e.message); } }
+function salvar() { try { localStorage.setItem(CHAVE, JSON.stringify(banco)); } catch (e) { aviso('Não consegui salvar no aparelho: ' + e.message); } }
 
 // ---------- tela de projetos ----------
 function mostrarTela(id) { document.querySelectorAll('.tela').forEach(t => t.classList.toggle('ativa', t.id === id)); }
@@ -92,7 +92,7 @@ $('#listaProjetos').addEventListener('click', e => {
   if (acao === 'abrir') abrirProjeto(id);
   else if (acao === 'renomear') pedirTexto('Renomear projeto', p.nome, n => { p.nome = n; p.atualizado = Date.now(); salvar(); renderLista(); });
   else if (acao === 'duplicar') { const c = clone(p); c.id = uid(); c.nome = p.nome + ' (cópia)'; c.criado = c.atualizado = Date.now(); banco.projetos.push(c); salvar(); renderLista(); }
-  else if (acao === 'excluir') { if (confirm(`Excluir "${p.nome}"? Não dá pra desfazer.`)) { banco.projetos = banco.projetos.filter(x => x.id !== id); salvar(); renderLista(); } }
+  else if (acao === 'excluir') confirmar(`Excluir "${p.nome}"? Não dá pra desfazer.`, () => { banco.projetos = banco.projetos.filter(x => x.id !== id); salvar(); renderLista(); });
 });
 $('#btnNovoProjeto').onclick = () => {
   pedirTexto('Nome do projeto', 'Casa ' + (banco.projetos.length + 1), nome => {
@@ -111,6 +111,16 @@ function pedirTexto(titulo, valor, ok) {
   const i = $('#mTxt'); i.focus(); i.select();
   const fim = () => { const v = i.value.trim(); if (!v) return; fecharModal(); ok(v); };
   $('#mOk').onclick = fim; $('#mCanc').onclick = fecharModal; i.onkeydown = e => { if (e.key === 'Enter') fim(); };
+}
+// avisos e confirmações próprios (alguns apps abrem o site num navegador interno que ignora alert/confirm)
+function aviso(msg) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('vis'); clearTimeout(aviso.tm); aviso.tm = setTimeout(() => t.classList.remove('vis'), 3200);
+}
+function confirmar(msg, ok, rotulo = 'Excluir') {
+  abrirModal(`<h2>${esc(msg)}</h2><div class="botoes"><button class="btn" id="mCanc">Cancelar</button><button class="btn primario perigoso" id="mOk">${esc(rotulo)}</button></div>`);
+  $('#mCanc').onclick = fecharModal; $('#mOk').onclick = () => { fecharModal(); ok(); };
 }
 const opcoesTipo = sel => TIPOS.map(([k, n]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${n}</option>`).join('');
 
@@ -131,7 +141,7 @@ function abrirProjeto(id) {
   definirModo(proj.comodos.length ? 'selecionar' : 'desenhar');
   requestAnimationFrame(() => { enquadrar(); render(); });
 }
-$('#btnVoltar').onclick = () => { if (rascunho.length && !confirm('Descartar o cômodo que está sendo desenhado?')) return; rascunho = []; proj = null; mostrarTela('telaProjetos'); renderLista(); };
+$('#btnVoltar').onclick = () => { const sair = () => { rascunho = []; proj = null; mostrarTela('telaProjetos'); renderLista(); }; rascunho.length ? confirmar('Descartar o cômodo que está sendo desenhado?', sair, 'Descartar') : sair(); };
 $('#nomeProjeto').onclick = () => pedirTexto('Renomear projeto', proj.nome, n => { proj.nome = n; gravar(); $('#nomeProjeto').textContent = n; });
 
 function gravar() { proj.atualizado = Date.now(); salvar(); }
@@ -320,8 +330,8 @@ function renderPainel() {
     p.querySelector('#selUn').onchange = e => { banco.unidade = e.target.value; salvar(); p.querySelector('#inMedida').placeholder = banco.unidade === 'cm' ? '350' : '3,50'; };
     p.querySelectorAll('.setas button').forEach(b => b.onclick = () => {
       const L = lerMedida(p.querySelector('#inMedida').value, banco.unidade);
-      if (!rascunho.length) { alert('Primeiro toque no desenho pra marcar o canto inicial.'); return; }
-      if (!isFinite(L)) { alert('Digite a medida da parede (ex.: 3,50 m ou 350 cm).'); return; }
+      if (!rascunho.length) { aviso('Primeiro toque no desenho pra marcar o canto inicial.'); return; }
+      if (!isFinite(L)) { aviso('Digite a medida da parede (ex.: 3,50 m ou 350 cm).'); return; }
       const [dx, dy] = b.dataset.d.split(',').map(Number), u = rascunho[rascunho.length - 1];
       const novo = [+(u[0] + dx * L).toFixed(4), +(u[1] + dy * L).toFixed(4)];
       if (rascunho.length >= 3 && dist(novo, rascunho[0]) < 0.005) { fecharRascunho(); return; }
@@ -349,7 +359,7 @@ function renderPainel() {
         <button class="btn" id="btnAddPorta">+ Adicionar porta</button></div>`;
     p.querySelector('#btnAddPorta').onclick = () => {
       const w = parseFloat(p.querySelector('#selLargPorta').value);
-      if (w > L + 1e-6) { alert('A porta é maior que a parede.'); return; }
+      if (w > L + 1e-6) { aviso('A porta é maior que a parede.'); return; }
       checkpoint(); c.portas = c.portas || []; c.portas.push({ id: uid(), parede: i, pos: L / 2, largura: w, fora: false, inverter: false }); gravar(); render();
     };
     p.querySelectorAll('.porta-linha').forEach(row => {
@@ -366,7 +376,7 @@ function renderPainel() {
     p.querySelector('#selUn2').onchange = e => { banco.unidade = e.target.value; salvar(); render(); };
     const aplicar = () => {
       const N = lerMedida(p.querySelector('#inParede').value, banco.unidade);
-      if (!isFinite(N)) { alert('Medida inválida. Ex.: 3,50 (m) ou 350 (cm).'); return; }
+      if (!isFinite(N)) { aviso('Medida inválida. Ex.: 3,50 (m) ou 350 (cm).'); return; }
       checkpoint(); esticarParede(c, i, N); gravar(); render();
     };
     p.querySelector('#btnAplicar').onclick = aplicar;
@@ -391,8 +401,8 @@ function renderPainel() {
   };
 }
 function excluirComodo() {
-  const c = comodo(sel.comodo); if (!c || !confirm(`Excluir ${c.nome}?`)) return;
-  checkpoint(); proj.comodos = proj.comodos.filter(x => x.id !== c.id); sel = { comodo: null, parede: null }; gravar(); render();
+  const c = comodo(sel.comodo); if (!c) return;
+  confirmar(`Excluir ${c.nome}?`, () => { checkpoint(); proj.comodos = proj.comodos.filter(x => x.id !== c.id); sel = { comodo: null, parede: null }; gravar(); render(); });
 }
 function nomeAuto(tipo, exceto) {
   const base = nomeTipo(tipo), n = proj.comodos.filter(c => c.tipo === tipo && c.id !== exceto).length;
@@ -410,7 +420,7 @@ function esticarParede(c, i, novoL) {
 function fecharRascunho() {
   if (rascunho.length < 3) return;
   const pts = rascunho.slice();
-  if (area(pts) < 0.05) { alert('Esse cômodo ficou sem área. Confira os cantos.'); return; }
+  if (area(pts) < 0.05) { aviso('Esse cômodo ficou sem área. Confira os cantos.'); return; }
   pedirTipo(pts);
 }
 function pedirTipo(pts) {
@@ -447,7 +457,7 @@ $('#btnRetangulo').onclick = () => {
   $('#mCanc').onclick = fecharModal;
   $('#mOk').onclick = () => {
     const L = lerMedida($('#mL').value, u), C = lerMedida($('#mC').value, u), tipo = $('#mTipo').value;
-    if (!isFinite(L) || !isFinite(C)) { alert('Preencha largura e comprimento.'); return; }
+    if (!isFinite(L) || !isFinite(C)) { aviso('Preencha largura e comprimento.'); return; }
     if (!tipo) { $('#mTipo').style.borderColor = '#ff5d5d'; $('#mTipo').focus(); return; }
     let x = 0, y = 0;
     const tod = todosVertices();
@@ -479,9 +489,8 @@ function definirModo(m) {
   render();
 }
 document.querySelectorAll('.barra .modo').forEach(b => b.onclick = () => {
-  if (modo === 'desenhar' && b.dataset.modo !== 'desenhar' && rascunho.length && !confirm('Descartar o cômodo em desenho?')) return;
-  if (b.dataset.modo !== 'desenhar') rascunho = [];
-  definirModo(b.dataset.modo);
+  const ir = () => { if (b.dataset.modo !== 'desenhar') rascunho = []; definirModo(b.dataset.modo); };
+  if (modo === 'desenhar' && b.dataset.modo !== 'desenhar' && rascunho.length) confirmar('Descartar o cômodo em desenho?', ir, 'Descartar'); else ir();
 });
 function garantirVisivel(w) {
   const r = svg.getBoundingClientRect(), s = tela(w);
