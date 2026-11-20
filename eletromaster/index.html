@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0f1b2d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="EletroMaster">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>EletroMaster · Editor de planta</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- TELA 1: PROJETOS -->
+<section id="telaProjetos" class="tela ativa">
+  <header class="topo">
+    <div class="marca"><span class="raio">⚡</span> EletroMaster</div>
+  </header>
+  <main class="lista-wrap">
+    <h1>Meus projetos</h1>
+    <button id="btnNovoProjeto" class="btn primario grande">+ Novo projeto</button>
+    <div id="listaProjetos"></div>
+    <p class="aviso">Ferramenta de apoio. Projeto elétrico oficial exige profissional habilitado e ART. Os projetos ficam salvos neste aparelho.</p>
+  </main>
+</section>
+
+<!-- TELA 2: EDITOR -->
+<section id="telaEditor" class="tela">
+  <header class="topo editor-topo">
+    <button id="btnVoltar" class="icone" aria-label="Voltar">‹</button>
+    <div id="nomeProjeto" class="nome-proj" title="Toque para renomear">Projeto</div>
+    <button id="btnDesfazer" class="icone" aria-label="Desfazer">↶</button>
+    <button id="btnRefazer" class="icone" aria-label="Refazer">↷</button>
+  </header>
+
+  <div id="areaDesenho">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="dica" class="dica"></div>
+    <button id="btnCentralizar" class="flutuante" aria-label="Centralizar">⤢</button>
+  </div>
+
+  <div id="painel" class="painel"></div>
+
+  <nav class="barra">
+    <button data-modo="selecionar" class="modo ativo"><span>☝</span>Selecionar</button>
+    <button data-modo="desenhar" class="modo"><span>✎</span>Desenhar</button>
+    <button id="btnRetangulo"><span>▭</span>Retângulo</button>
+    <button id="btnComodos"><span>☰</span>Cômodos</button>
+  </nav>
+</section>
+
+<!-- MODAL GENÉRICO -->
+<div id="modal" class="modal escondido">
+  <div class="modal-caixa">
+    <div id="modalConteudo"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
