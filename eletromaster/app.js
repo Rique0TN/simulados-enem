@@ -468,8 +468,8 @@ function pedirTipo(pts) {
 $('#btnRetangulo').onclick = () => {
   const u = banco.unidade;
   abrirModal(`<h2>Cômodo retangular</h2>
-    <div class="dupla"><div class="campo"><label>Largura (${u})</label><input id="mL" type="text" inputmode="decimal" placeholder="${u === 'cm' ? '300' : '3,00'}"></div>
-    <div class="campo"><label>Comprimento (${u})</label><input id="mC" type="text" inputmode="decimal" placeholder="${u === 'cm' ? '400' : '4,00'}"></div></div>
+    <div class="dupla"><div class="campo"><label>Largura (${u})</label><input id="mL" type="text" inputmode="decimal" value="${u === 'cm' ? '300' : '3,00'}" onfocus="this.select()"></div>
+    <div class="campo"><label>Comprimento (${u})</label><input id="mC" type="text" inputmode="decimal" value="${u === 'cm' ? '400' : '4,00'}" onfocus="this.select()"></div></div>
     <div class="campo"><label>Tipo</label><select id="mTipo"><option value="">Escolha…</option>${opcoesTipo('')}</select></div>
     <div class="campo"><label>Nome (opcional)</label><input id="mNome" type="text" maxlength="40"></div>
     <div class="botoes"><button class="btn" id="mCanc">Cancelar</button><button class="btn primario" id="mOk">Criar</button></div>`);
@@ -663,4 +663,4 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=6').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=7').catch(() => {});
