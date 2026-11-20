@@ -192,8 +192,9 @@ function zoomEm(sx, sy, fator) {
 
 // ---------- ímãs ----------
 function todosVertices(excetoId) { const v = []; proj.comodos.forEach(c => { if (c.id !== excetoId) c.pts.forEach(p => v.push(p)); }); return v; }
-function imantar(w, ref, excetoId) {
-  const tol = TOL_PX / vista.esc;
+function paredesTodas(excetoId) { const r = []; proj.comodos.forEach(c => { if (c.id !== excetoId) c.pts.forEach((a, i) => r.push([a, c.pts[(i + 1) % c.pts.length]])); }); return r; }
+function imantar(w, ref, excetoId, mult = 1) {
+  const tol = TOL_PX * mult / vista.esc;
   const cand = todosVertices(excetoId).concat(rascunho.length >= 3 ? [rascunho[0]] : []);
   let melhor = null, md = tol;
   cand.forEach(p => { const d = dist(p, w); if (d < md) { md = d; melhor = p; } });
@@ -203,6 +204,20 @@ function imantar(w, ref, excetoId) {
     const dx = x - ref[0], dy = y - ref[1], ang = Math.abs(Math.atan2(dy, dx) * 180 / Math.PI);
     if (ang < 9 || ang > 171) y = ref[1];
     else if (Math.abs(ang - 90) < 9) x = ref[0];
+  }
+  // encosta numa parede existente (pra começar ou terminar um cômodo colado no outro)
+  const fixY = ref && y === ref[1], fixX = ref && x === ref[0];
+  for (const [a, b] of paredesTodas(excetoId)) {
+    if (distSeg([x, y], a, b) > tol) continue;
+    const vert = Math.abs(a[0] - b[0]) < 1e-6, horiz = Math.abs(a[1] - b[1]) < 1e-6;
+    if (fixY && vert) return [a[0], y];
+    if (fixX && horiz) return [x, a[1]];
+    if (!ref) {
+      const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+      let t = ((x - a[0]) * dx + (y - a[1]) * dy) / L2; t = Math.max(0, Math.min(1, t));
+      const L = Math.sqrt(L2); t = Math.round(t * L / GRADE) * GRADE / L;
+      return [+(a[0] + t * dx).toFixed(4), +(a[1] + t * dy).toFixed(4)];
+    }
   }
   const g = v => Math.round(v / GRADE) * GRADE;
   if (ref && y === ref[1]) return [ref[0] + g(x - ref[0]), y];
@@ -279,6 +294,7 @@ function render() {
       <text x="${ct[0]}" y="${ct[1] + 13}" text-anchor="middle" font-size="12" fill="#ffc531">${fmt(area(c.pts))} m²</text>`;
     if (s && modo === 'selecionar') c.pts.forEach(p => { const P = tela(p); h += `<circle cx="${P[0]}" cy="${P[1]}" r="7" fill="#3b9cff" stroke="#fff" stroke-width="2"/>`; });
   });
+  if (modo === 'desenhar') proj.comodos.forEach(c => c.pts.forEach(p => { const P = tela(p); h += `<circle cx="${P[0]}" cy="${P[1]}" r="7" fill="#3b9cff" stroke="#fff" stroke-width="2"/>`; }));
   // rascunho
   if (rascunho.length) {
     const pts = rascunho.map(tela);
@@ -303,7 +319,7 @@ function render() {
 function renderDica() {
   let t = '';
   if (modo === 'desenhar') {
-    if (!rascunho.length) t = 'Arraste o dedo pra desenhar a primeira parede';
+    if (!rascunho.length) t = proj.comodos.length ? 'Comece numa bolinha azul (ou numa parede) e arraste pra criar o próximo cômodo' : 'Arraste o dedo pra desenhar a primeira parede';
     else if (rascunho.length < 3) t = 'Arraste de novo pra próxima parede (ou digite a medida e use as setas)';
     else t = 'Continue, ou arraste até o ponto verde pra fechar';
   } else if (!proj.comodos.length) t = 'Toque em Desenhar ou Retângulo para começar';
@@ -519,7 +535,7 @@ svg.addEventListener('pointerdown', e => {
   gesto = { tipo: 'pan', ini: s, ox0: vista.ox, oy0: vista.oy, moveu: false };
   if (modo === 'desenhar') {
     // arrastar o dedo desenha a parede: começa no último canto (ou onde tocou, se for a primeira)
-    const inicio = rascunho.length ? rascunho[rascunho.length - 1] : imantar(w, null);
+    const inicio = rascunho.length ? rascunho[rascunho.length - 1] : imantar(w, null, undefined, 2);
     gesto = { tipo: 'traco', ini: s, inicio, novoInicio: !rascunho.length, moveu: false };
     return;
   }
@@ -632,7 +648,7 @@ function toque(s) {
   const w = mundo(s);
   if (modo === 'desenhar') {
     if (rascunho.length >= 3 && dist(tela(rascunho[0]), s) < TOL_PX + 6) { fecharRascunho(); return; }
-    const p = imantar(w, rascunho[rascunho.length - 1]);
+    const p = imantar(w, rascunho[rascunho.length - 1], undefined, rascunho.length ? 1 : 2);
     const u = rascunho[rascunho.length - 1];
     if (u && dist(u, p) < 0.01) return;
     rascunho.push(p); cursor = null; render(); return;
