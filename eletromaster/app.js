@@ -42,8 +42,8 @@ function tug(c) {
   else if (c.tipo === 'sala' || c.tipo === 'quarto') { min = por(5); obs = '1 a cada 5 m de perímetro, bem distribuídas'; }
   else if (c.tipo === 'varanda') { min = 1; obs = 'pelo menos 1'; }
   else { min = a <= 6 ? 1 : por(5); obs = a <= 2.25 ? '1 (pode ficar do lado de fora, até 0,80 m da porta)' : a <= 6 ? '1 (até 6 m²)' : '1 a cada 5 m de perímetro'; }
-  const max = min + (EXTRA_REC[c.tipo] ?? 1);
-  return { min, max, va: tugVA(c.tipo, min), vaMax: tugVA(c.tipo, max), obs };
+  const max = min + (EXTRA_REC[c.tipo] ?? 1), col = (c.pontos || []).filter(q => q.k === 'tom').length, n = Math.max(min, col);
+  return { min, max, col, n, va: tugVA(c.tipo, n), vaMax: tugVA(c.tipo, max), obs };
 }
 function perimetro(pts) { let s = 0; for (let i = 0; i < pts.length; i++) s += dist(pts[i], pts[(i + 1) % pts.length]); return s; }
 function centroide(pts) {
@@ -300,6 +300,7 @@ function render() {
   });
   { const c = sel.comodo && comodo(sel.comodo); if (c && sel.parede != null) { const A = tela(c.pts[sel.parede]), B = tela(c.pts[(sel.parede + 1) % c.pts.length]); h += `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#ffc531" stroke-width="6" stroke-linecap="round"/>`; } }
   proj.comodos.forEach(c => (c.portas || []).forEach(pt => h += svgPorta(c, pt, c.id === sel.comodo && sel.parede === pt.parede)));
+  proj.comodos.forEach(c => (c.pontos || []).forEach(q => h += svgPonto(c, q, modo === 'pontos' && selPonto === q.id)));
   proj.comodos.forEach(c => {
     const s = c.id === sel.comodo;
     // cotas das paredes: sempre na horizontal (fácil de ler) e um pouco pra dentro do cômodo
@@ -353,7 +354,8 @@ function renderDica() {
     if (!rascunho.length) t = proj.comodos.length ? 'Comece numa bolinha azul (ou numa parede) e arraste pra criar o próximo cômodo' : 'Arraste o dedo pra desenhar a primeira parede';
     else if (rascunho.length < 3) t = 'Arraste de novo pra próxima parede (ou digite a medida e use as setas)';
     else t = 'Continue, ou arraste até o ponto verde pra fechar';
-  } else if (!proj.comodos.length) t = 'Toque em Desenhar ou Retângulo para começar';
+  } else if (modo === 'pontos') t = proj.comodos.length ? 'Escolha o tipo embaixo e toque perto da parede pra colocar. Arraste pra mudar de lugar.' : 'Desenhe um cômodo primeiro';
+  else if (!proj.comodos.length) t = 'Toque em Desenhar ou Retângulo para começar';
   else if (!sel.comodo) t = 'Toque num cômodo ou numa parede';
   else if (sel.parede == null) t = 'Arraste cantos ou portas, ou toque numa parede pra medida e porta';
   $('#dica').textContent = t;
@@ -390,6 +392,7 @@ function renderPainel() {
     return;
   }
   p.dataset.tipo = '';
+  if (modo === 'pontos') { painelPontos(p); return; }
   const c = sel.comodo && comodo(sel.comodo);
   if (!c) { p.classList.remove('aberto'); p.innerHTML = ''; return; }
   p.classList.add('aberto');
@@ -438,7 +441,7 @@ function renderPainel() {
   p.innerHTML = `<div class="linha"><input id="inNome" type="text" value="${esc(c.nome)}" maxlength="40"><select id="selTipo">${opcoesTipo(c.tipo)}</select></div>
     <div class="linha medidas">Área <b>${fmt(area(c.pts))} m²</b> · Perímetro <b>${fmt(perimetro(c.pts))} m</b> · ${c.pts.length} paredes</div>
     <div class="linha medidas">💡 Iluminação (NBR 5410): mín. <b>1 ponto no teto</b> com interruptor · carga mín. <b>${iluminacao(c.pts).va} VA</b></div>
-    <div class="linha medidas">🔌 Tomadas TUG: mín. <b>${tug(c).min}</b> (NBR 5410: ${tug(c).obs}) · recomendado até <b>${tug(c).max}</b> · carga mín. <b>${tug(c).va} VA</b></div>
+    <div class="linha medidas">🔌 Tomadas TUG: mín. <b>${tug(c).min}</b> (NBR 5410: ${tug(c).obs}) · recomendado até <b>${tug(c).max}</b> · colocadas na planta <b>${tug(c).col}</b> · carga <b>${tug(c).va} VA</b></div>
     <div class="linha medidas">⚡ TUE: ${(c.tue || []).length ? (c.tue || []).map(u => `<span class="chip" data-edtue="${u.id}">✏️ ${esc(u.nome)} ${u.w} W · ${fmt(tueA(u), 1)} A${tueA(u) > 10 ? ' · circ. exclusivo' : ''} <button class="x" data-tue="${u.id}">✕</button></span>`).join(' ') + ` · total <b>${tueTotal(c)} VA</b>` : 'nenhuma'} <button class="btn" id="btnTUE">+ TUE</button><button class="btn" id="btnTensao" title="Tensão da instalação">🔁 ${tensao()} V</button></div>
     <div class="linha"><button class="btn" id="btnPorque">❓ Por que esses valores?</button><button class="btn" id="btnDup">Duplicar</button><button class="btn perigo" id="btnExc">Excluir</button></div>`;
   p.querySelector('#inNome').onchange = e => { const v = e.target.value.trim(); if (!v) return; checkpoint(); c.nome = v; gravar(); render(); };
@@ -581,7 +584,7 @@ function circuitos() {
   const V = tensao(), limL = maiorDisj(1.5) * V, limT = maiorDisj(2.5) * V, lim = limT, cs = proj.comodos, out = [];
   const luz = cs.map(c => ({ nome: c.nome, va: iluminacao(c.pts).va, n: 1 }));
   agrupar(luz, limL).forEach(g => out.push({ tipo: 'Iluminação', desc: resumoItens(g.itens), va: g.va }));
-  const tomadas = grupo => cs.filter(grupo).flatMap(c => { const t = tug(c), arr = []; for (let k = 1; k <= t.min; k++) arr.push({ nome: c.nome, va: tugVA(c.tipo, k) - tugVA(c.tipo, k - 1), n: 1 }); return arr; });
+  const tomadas = grupo => cs.filter(grupo).flatMap(c => { const t = tug(c), arr = []; for (let k = 1; k <= t.n; k++) arr.push({ nome: c.nome, va: tugVA(c.tipo, k) - tugVA(c.tipo, k - 1), n: 1 }); return arr; });
   agrupar(tomadas(c => !MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG', desc: resumoItens(g.itens), va: g.va }));
   agrupar(tomadas(c => MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG (cozinha/serviço)', desc: resumoItens(g.itens), va: g.va }));
   cs.forEach(c => (c.tue || []).forEach(u => out.push({ tipo: 'TUE', desc: `${esc(u.nome)} (${esc(c.nome)})`, va: tueVA(u), exclusivo: tueA(u) > 10 })));
@@ -761,6 +764,11 @@ svg.addEventListener('pointerdown', e => {
     gesto = { tipo: 'traco', ini: s, inicio, novoInicio: !rascunho.length, moveu: false };
     return;
   }
+  if (modo === 'pontos') {
+    const pq = pontoEm(s);
+    if (pq) { selPonto = pq.q.id; sel = { comodo: pq.c.id, parede: null }; gesto = { tipo: 'ponto', ini: s, c: pq.c, q: pq.q, moveu: false }; render(); }
+    return;
+  }
   if (modo === 'selecionar') {
     const pe = portaEm(s);
     if (pe && !(sel.comodo && comodo(sel.comodo).pts.some(p => dist(tela(p), s) < TOL_PX + 4))) { gesto = { tipo: 'porta', ini: s, c: pe.c, pt: pe.pt, moveu: false }; return; }
@@ -786,7 +794,8 @@ svg.addEventListener('pointermove', e => {
     return;
   }
   if (!gesto.moveu && dist(s, gesto.ini) < 7) return;
-  if (!gesto.moveu) { gesto.moveu = true; if (gesto.tipo === 'vertice' || gesto.tipo === 'mover' || gesto.tipo === 'porta') checkpoint(); }
+  if (!gesto.moveu) { gesto.moveu = true; if (gesto.tipo === 'vertice' || gesto.tipo === 'mover' || gesto.tipo === 'porta' || gesto.tipo === 'ponto') checkpoint(); }
+  if (gesto.tipo === 'ponto') { const m = paredeMaisPerto(gesto.c, mundo(s)); if (m) { gesto.q.parede = m.i; gesto.q.pos = m.pos; } render(); return; }
   if (gesto.tipo === 'traco') {
     if (gesto.novoInicio) { rascunho.push(gesto.inicio); gesto.novoInicio = false; }
     cursor = imantar(mundo(s), rascunho[rascunho.length - 1]); render(); return;
@@ -831,7 +840,8 @@ function fimPonteiro(e) {
   if (gesto && gesto.tipo === 'pinca') { if (ponteiros.size === 0) gesto = null; else gesto = { tipo: 'nada', moveu: true }; return; }
   if (!gesto) return;
   const g = gesto; gesto = null;
-  if ((g.tipo === 'vertice' || g.tipo === 'mover' || g.tipo === 'porta') && g.moveu) { gravar(); render(); return; }
+  if ((g.tipo === 'vertice' || g.tipo === 'mover' || g.tipo === 'porta' || g.tipo === 'ponto') && g.moveu) { gravar(); render(); return; }
+  if (g.tipo === 'ponto') return;
   if (g.tipo === 'porta') { sel = { comodo: g.c.id, parede: g.pt.parede }; render(); return; }
   if (g.tipo === 'traco' && g.moveu) {
     const u = rascunho[rascunho.length - 1], fim = imantar(mundo(s), u); cursor = null;
@@ -868,6 +878,7 @@ function paredeEm(s) {
 
 function toque(s) {
   const w = mundo(s);
+  if (modo === 'pontos') { colocarPonto(w); return; }
   if (modo === 'desenhar') {
     if (rascunho.length >= 3 && dist(tela(rascunho[0]), s) < TOL_PX + 6) { fecharRascunho(); return; }
     const p = imantar(w, rascunho[rascunho.length - 1], undefined, rascunho.length ? 1 : 2);
@@ -883,9 +894,92 @@ function toque(s) {
   sel = { comodo: null, parede: null }; render();
 }
 
+// ---------- pontos na planta: tomadas e interruptores (simbologia usual NBR 5444) ----------
+let selPonto = null, ferramenta = 'bx';
+const ALT = { bx: ['Baixa', '0,30 m'], md: ['Média', '1,30 m'], al: ['Alta', '2,00 m'] };
+const FERR = [['bx', '▽ Baixa'], ['md', '◭ Média'], ['al', '▲ Alta'], ['int', '● Interruptor'], ['par', '◐ Paralelo']];
+function paredeMaisPerto(c, w) {
+  let melhor = null, md = Infinity;
+  c.pts.forEach((a, i) => {
+    const b = c.pts[(i + 1) % c.pts.length], L = dist(a, b); if (L < 0.2) return;
+    const d = distSeg(w, a, b); if (d < md) { md = d; const t = ((w[0] - a[0]) * (b[0] - a[0]) + (w[1] - a[1]) * (b[1] - a[1])) / L; melhor = { i, pos: Math.max(0.1, Math.min(L - 0.1, Math.round(t / GRADE) * GRADE)), d }; }
+  });
+  return melhor;
+}
+function geoPonto(c, q) {
+  const n = c.pts.length, a = c.pts[q.parede % n], b = c.pts[(q.parede + 1) % n], L = dist(a, b); if (L < 1e-6) return null;
+  const d = [(b[0] - a[0]) / L, (b[1] - a[1]) / L], pos = Math.min(q.pos, L), m = [a[0] + d[0] * pos, a[1] + d[1] * pos];
+  let nrm = [-d[1], d[0]]; const ct = centroide(c.pts);
+  if ((ct[0] - m[0]) * nrm[0] + (ct[1] - m[1]) * nrm[1] < 0) nrm = [-nrm[0], -nrm[1]];
+  return { m, nrm, d };
+}
+function letraLuz(c) { const i = proj.comodos.indexOf(c); return String.fromCharCode(97 + (i % 26)); }
+function svgPonto(c, q, destaque) {
+  const g = geoPonto(c, q); if (!g) return '';
+  const P = tela(g.m), off = 16, C = [P[0] + g.nrm[0] * off, P[1] + g.nrm[1] * off], cor = destaque ? '#ffc531' : '#e8eef7';
+  let h = `<line x1="${P[0]}" y1="${P[1]}" x2="${C[0]}" y2="${C[1]}" stroke="${cor}" stroke-width="1.6"/>`;
+  if (q.k === 'tom') {
+    const r = 9, ang = Math.atan2(g.nrm[1], g.nrm[0]);
+    const v = [0, 2.094, 4.189].map(t => [C[0] + r * Math.cos(ang + t), C[1] + r * Math.sin(ang + t)]);
+    const pts = v.map(p => p.map(x => x.toFixed(1)).join(',')).join(' ');
+    h += `<polygon points="${pts}" fill="${q.alt === 'al' ? cor : '#0d1626'}" stroke="${cor}" stroke-width="1.6"/>`;
+    if (q.alt === 'md') { const meio = [(v[1][0] + v[2][0]) / 2, (v[1][1] + v[2][1]) / 2]; h += `<polygon points="${[v[0], v[1], meio].map(p => p.map(x => x.toFixed(1)).join(',')).join(' ')}" fill="${cor}"/>`; }
+  } else {
+    const r = 6; h += `<circle cx="${C[0]}" cy="${C[1]}" r="${r}" fill="${q.k === 'par' ? '#0d1626' : cor}" stroke="${cor}" stroke-width="1.6"/>`;
+    if (q.k === 'par') h += `<path d="M${C[0]},${C[1] - r}A${r},${r} 0 0 1 ${C[0]},${C[1] + r}Z" fill="${cor}"/>`;
+    h += `<text x="${C[0] + 9}" y="${C[1] - 6}" font-size="11" font-weight="700" fill="#ffd84a">${letraLuz(c)}</text>`;
+  }
+  return h;
+}
+function pontoEm(s) {
+  let melhor = null, md = TOL_PX + 6;
+  proj.comodos.forEach(c => (c.pontos || []).forEach(q => { const g = geoPonto(c, q); if (!g) return; const P = tela(g.m), C = [P[0] + g.nrm[0] * 16, P[1] + g.nrm[1] * 16], d = dist(C, s); if (d < md) { md = d; melhor = { c, q }; } }));
+  return melhor;
+}
+function colocarPonto(w) {
+  let c = null; for (let i = proj.comodos.length - 1; i >= 0; i--) if (dentro(w, proj.comodos[i].pts)) { c = proj.comodos[i]; break; }
+  if (!c) { selPonto = null; aviso('Toque dentro de um cômodo, perto da parede.'); render(); return; }
+  const m = paredeMaisPerto(c, w); if (!m) return;
+  checkpoint(); c.pontos = c.pontos || [];
+  const q = ferramenta === 'int' || ferramenta === 'par' ? { id: uid(), k: ferramenta, parede: m.i, pos: m.pos } : { id: uid(), k: 'tom', alt: ferramenta, parede: m.i, pos: m.pos };
+  c.pontos.push(q); selPonto = q.id; sel = { comodo: c.id, parede: null }; gravar(); render();
+}
+function achaPonto(id) { for (const c of proj.comodos) { const q = (c.pontos || []).find(x => x.id === id); if (q) return { c, q }; } return null; }
+function painelPontos(p) {
+  p.classList.add('aberto');
+  const ach = selPonto && achaPonto(selPonto), c = ach ? ach.c : sel.comodo && comodo(sel.comodo);
+  let h = `<div class="linha">${FERR.map(([k, n]) => `<button class="btn ${ferramenta === k ? 'primario' : ''}" data-ferr="${k}">${n}</button>`).join('')}<button class="btn" id="btnLegenda">Legenda</button></div>`;
+  if (c) { const t = tug(c), ni = (c.pontos || []).filter(q => q.k !== 'tom').length; h += `<div class="linha medidas">${esc(c.nome)}: tomadas <b>${t.col}</b> (mín. ${t.min} · recom. até ${t.max})${t.col < t.min ? ' ⚠️ faltam ' + (t.min - t.col) : t.col > t.max ? ' · acima do recomendado' : ' ✔'} · interruptores <b>${ni}</b> (luz "${letraLuz(c)}")</div>`; }
+  if (ach) {
+    const q = ach.q;
+    h += `<div class="linha">${q.k === 'tom' ? `Tomada <select id="pAlt">${Object.entries(ALT).map(([k, [n, a]]) => `<option value="${k}" ${q.alt === k ? 'selected' : ''}>${n} (${a})</option>`).join('')}</select>` : `Interruptor <select id="pTipoInt"><option value="int" ${q.k === 'int' ? 'selected' : ''}>Simples</option><option value="par" ${q.k === 'par' ? 'selected' : ''}>Paralelo (three-way)</option></select>`}
+      <button class="btn perigo" id="pExc">✕ Excluir</button></div>`;
+  }
+  p.innerHTML = h;
+  p.querySelectorAll('[data-ferr]').forEach(b => b.onclick = () => { ferramenta = b.dataset.ferr; selPonto = null; render(); });
+  p.querySelector('#btnLegenda').onclick = legendaPontos;
+  if (ach) {
+    const q = ach.q, a = p.querySelector('#pAlt'), ti = p.querySelector('#pTipoInt');
+    if (a) a.onchange = e => { checkpoint(); q.alt = e.target.value; gravar(); render(); };
+    if (ti) ti.onchange = e => { checkpoint(); q.k = e.target.value; gravar(); render(); };
+    p.querySelector('#pExc').onclick = () => { checkpoint(); ach.c.pontos = ach.c.pontos.filter(x => x.id !== q.id); selPonto = null; gravar(); render(); };
+  }
+}
+function legendaPontos() {
+  const cor = '#e8eef7';
+  const tri = alt => `<svg width="40" height="34"><polygon points="20,4 4,30 36,30" fill="${alt === 'al' ? cor : '#0d1626'}" stroke="${cor}" stroke-width="2"/>${alt === 'md' ? `<polygon points="20,4 4,30 20,30" fill="${cor}"/>` : ''}</svg>`;
+  const circ = par => `<svg width="40" height="34"><circle cx="20" cy="17" r="9" fill="${par ? '#0d1626' : cor}" stroke="${cor}" stroke-width="2"/>${par ? `<path d="M20,8A9,9 0 0 1 20,26Z" fill="${cor}"/>` : ''}</svg>`;
+  abrirModal(`<h2>Legenda dos pontos</h2>
+    <table class="tab"><tr><td>${tri('bx')}</td><td>Tomada baixa · 0,30 m do piso</td></tr><tr><td>${tri('md')}</td><td>Tomada média · 1,30 m do piso</td></tr><tr><td>${tri('al')}</td><td>Tomada alta · 2,00 m do piso</td></tr>
+    <tr><td>${circ(false)}</td><td>Interruptor simples · a letra é o ponto de luz que ele acende</td></tr><tr><td>${circ(true)}</td><td>Interruptor paralelo (three-way) · comanda a mesma luz de 2 lugares</td></tr></table>
+    <p class="aviso" style="margin-top:10px">Símbolos e alturas do padrão tradicional brasileiro (NBR 5444). Essa norma foi cancelada em 2014 sem substituta, mas continua sendo a mais usada em projetos residenciais; por isso todo projeto deve trazer a sua legenda. As tomadas colocadas contam no cálculo: se você puser mais que o mínimo, a carga de TUG e os circuitos usam a quantidade colocada.</p>
+    <div class="botoes"><button class="btn" id="mCanc">Fechar</button></div>`);
+  $('#mCanc').onclick = fecharModal;
+}
+
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=20').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=21').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
