@@ -63,3 +63,4 @@ tr.clicavel{cursor:pointer}
 .toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 64px);transform:translate(-50%,-20px);background:#ff5d5d;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:90%;text-align:center}
 .toast.vis{opacity:1;transform:translate(-50%,0)}
 .btn.perigoso{background:#ff5d5d;border-color:#ff5d5d}
+.modal-caixa table{display:block;overflow-x:auto;font-size:12px;white-space:nowrap}
