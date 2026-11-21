@@ -1,4 +1,4 @@
-/* EletroMaster — Módulos 1–6: editor de planta + projetos + área/perímetro
+/* EletroMaster — Módulos 1–7: editor de planta + projetos + área/perímetro
    Coordenadas internas em metros. Tudo salvo no localStorage do aparelho. */
 'use strict';
 
@@ -552,6 +552,42 @@ function mostrarDemanda() {
     <div class="botoes"><button class="btn" id="mVolta">← Cômodos</button><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal; $('#mVolta').onclick = () => $('#btnComodos').onclick();
 }
+// ---------- módulo 7: divisão de circuitos ----------
+// NBR 5410 (9.5.3): circuitos de iluminação separados dos de tomadas; tomadas de cozinha, copa, área de serviço e
+// lavanderia em circuitos só delas; aparelho acima de 10 A em circuito independente.
+// Critério do EletroMaster (prática usual): circuitos gerais limitados a 10 A (2200 VA em 220 V / 1270 VA em 127 V); cada TUE com circuito próprio.
+const MOLH_CIRC = ['cozinha', 'copa', 'area_servico'];
+function agrupar(itens, lim) {
+  const cs = []; let atual = null;
+  itens.forEach(it => { if (!atual || atual.va + it.va > lim) { atual = { va: 0, itens: [] }; cs.push(atual); } atual.va += it.va; atual.itens.push(it); });
+  return cs;
+}
+function resumoItens(its) { const m = new Map(); its.forEach(i => m.set(i.nome, (m.get(i.nome) || 0) + i.n)); return [...m].map(([n, q]) => `${esc(n)}${q > 1 ? ` (${q})` : ''}`).join(', '); }
+function circuitos() {
+  const V = tensao(), lim = 10 * V, cs = proj.comodos, out = [];
+  const luz = cs.map(c => ({ nome: c.nome, va: iluminacao(c.pts).va, n: 1 }));
+  agrupar(luz, lim).forEach(g => out.push({ tipo: 'Iluminação', desc: resumoItens(g.itens), va: g.va }));
+  const tomadas = grupo => cs.filter(grupo).flatMap(c => { const t = tug(c), arr = []; for (let k = 1; k <= t.min; k++) arr.push({ nome: c.nome, va: tugVA(c.tipo, k) - tugVA(c.tipo, k - 1), n: 1 }); return arr; });
+  agrupar(tomadas(c => !MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG', desc: resumoItens(g.itens), va: g.va }));
+  agrupar(tomadas(c => MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG (cozinha/serviço)', desc: resumoItens(g.itens), va: g.va }));
+  cs.forEach(c => (c.tue || []).forEach(u => out.push({ tipo: 'TUE', desc: `${esc(u.nome)} (${esc(c.nome)})`, va: tueVA(u), exclusivo: tueA(u) > 10 })));
+  out.forEach((c, i) => { c.n = i + 1; c.i = c.va / V; });
+  return { lista: out, V, lim };
+}
+function mostrarCircuitos() {
+  const { lista, V, lim } = circuitos();
+  const ls = arr => `<ul class="passos">${arr.map(x => `<li>${x}</li>`).join('')}</ul>`;
+  const linhas = lista.map(c => `<tr><td class="n">${c.n}</td><td>${c.tipo}</td><td>${c.desc}</td><td class="n">${c.va}</td><td class="n">${fmt(c.i, 1)}</td></tr>`).join('');
+  const nL = lista.filter(c => c.tipo === 'Iluminação').length, nT = lista.filter(c => c.tipo === 'TUG').length, nM = lista.filter(c => c.tipo.startsWith('TUG (')).length, nE = lista.filter(c => c.tipo === 'TUE').length;
+  abrirModal(`<h2>🔀 Circuitos de ${esc(proj.nome)}</h2>
+    ${lista.length ? `<table><tr><th class="n">Nº</th><th>Tipo</th><th>Atende</th><th class="n">VA</th><th class="n">A</th></tr>${linhas}</table>` : '<div class="vazio">Desenhe os cômodos primeiro.</div>'}
+    <h3 class="exp-t">Por que ficou assim?</h3>
+    <div class="exp-norma"><b>📘 O que a norma diz</b>${ls(['Iluminação e tomadas devem ficar em <b>circuitos separados</b>.', 'As tomadas de <b>cozinha, copa, área de serviço e lavanderia</b> devem ter circuitos <b>só para elas</b>, sem misturar com outros cômodos.', 'Todo aparelho com corrente acima de <b>10 A</b> precisa de <b>circuito independente</b>.', 'Os circuitos devem ser divididos para facilitar manutenção e evitar que um defeito desligue a casa toda.'])}</div>
+    <div class="exp-aplic"><b>🧮 Como foi aplicado na sua casa</b>${ls([`Critério do EletroMaster (prática usual, não é número da norma): cada circuito de luz ou TUG vai até <b>10 A</b> → 10 × ${V} V = <b>${lim} VA</b>. Passou disso, abre outro circuito.`, `Iluminação: ${nL} circuito(s), separados das tomadas.`, `TUG dos outros cômodos: ${nT} circuito(s).`, `TUG de cozinha/copa/área de serviço: ${nM} circuito(s), exclusivos dessas áreas. Nas tomadas de 600 VA o somatório enche o circuito mais rápido.`, `TUE: ${nE} circuito(s), um por aparelho${lista.some(c => c.exclusivo) ? ` (os de mais de 10 A são obrigatórios pela norma; os outros são boa prática)` : ''}.`, 'A bitola do fio e o disjuntor de cada circuito vêm nos próximos módulos.'])}</div>
+    <p class="aviso">Regras da NBR 5410 (item 9.5.3) explicadas com nossas palavras. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
+    <div class="botoes"><button class="btn" id="mVolta">← Cômodos</button><button class="btn" id="mCanc">Fechar</button></div>`);
+  $('#mCanc').onclick = fecharModal; $('#mVolta').onclick = () => $('#btnComodos').onclick();
+}
 // ---------- explicação: o que a norma diz + como foi aplicado ----------
 function regraTUG(tipo) {
   if (tipo === 'banheiro' || tipo === 'lavabo') return ['Em banheiros, deve haver <b>pelo menos 1 tomada perto do lavatório</b> (pia).', 'A tomada precisa respeitar a distância do box/banheira definida pela norma para áreas molhadas (volumes de risco).'];
@@ -666,8 +702,8 @@ $('#btnComodos').onclick = () => {
     <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th><th class="n">Luz (VA)</th><th class="n">TUG</th><th class="n">TUG (VA)</th><th class="n">TUE (VA)</th></tr>${linhas}
     <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td><td class="n">${tv}</td><td class="n">${tn}</td><td class="n">${tt}</td><td class="n">${te}</td></tr></table>
     <p class="aviso" style="margin-top:10px">Luz: mínimo pela NBR 5410 (1 ponto no teto por cômodo; 100 VA até 6 m², +60 VA a cada 4 m² inteiros). TUG: mínimo da NBR 5410 – máximo recomendado pelo app; VA calculado com o mínimo (600 VA nas 3 primeiras de cozinha, copa, área de serviço e banheiro; 100 VA nas demais). TUE: potência do aparelho; acima de 10 A na tensão do projeto (${tensao()} V), circuito exclusivo. Ferramenta de apoio: confira com profissional habilitado.</p>
-    <div class="botoes"><button class="btn primario" id="mDem">📊 Demanda da casa</button><button class="btn" id="mImg">📷 Imagem da planta</button><button class="btn" id="mCanc">Fechar</button></div>`);
-  $('#mCanc').onclick = fecharModal; $('#mDem').onclick = mostrarDemanda; $('#mImg').onclick = () => { fecharModal(); exportarImagem(); };
+    <div class="botoes"><button class="btn primario" id="mDem">📊 Demanda da casa</button><button class="btn primario" id="mCirc">🔀 Circuitos</button><button class="btn" id="mImg">📷 Imagem da planta</button><button class="btn" id="mCanc">Fechar</button></div>`);
+  $('#mCanc').onclick = fecharModal; $('#mDem').onclick = mostrarDemanda; $('#mCirc').onclick = mostrarCircuitos; $('#mImg').onclick = () => { fecharModal(); exportarImagem(); };
   $('#modalConteudo').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { fecharModal(); definirModo('selecionar'); sel = { comodo: tr.dataset.id, parede: null }; render(); });
 };
 
@@ -833,7 +869,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=17').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=18').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
