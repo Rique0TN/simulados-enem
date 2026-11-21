@@ -1,4 +1,4 @@
-/* EletroMaster — Módulos 1–7: editor de planta + projetos + área/perímetro
+/* EletroMaster — Módulos 1–8: editor de planta + projetos + área/perímetro
    Coordenadas internas em metros. Tudo salvo no localStorage do aparelho. */
 'use strict';
 
@@ -555,8 +555,21 @@ function mostrarDemanda() {
 // ---------- módulo 7: divisão de circuitos ----------
 // NBR 5410 (9.5.3): circuitos de iluminação separados dos de tomadas; tomadas de cozinha, copa, área de serviço e
 // lavanderia em circuitos só delas; aparelho acima de 10 A em circuito independente.
-// Critério do EletroMaster (prática usual): circuitos gerais limitados a 10 A (2200 VA em 220 V / 1270 VA em 127 V); cada TUE com circuito próprio.
+// Módulo 8/9: o limite de cada circuito vem da coordenação Ib ≤ In ≤ Iz (corrente do circuito ≤ disjuntor ≤ capacidade do fio corrigida).
+// Capacidade de condução: cobre, isolação PVC 70 °C, eletroduto embutido em alvenaria (método B1), 2 condutores carregados, 30 °C.
+const CAP = [[1.5, 17.5], [2.5, 24], [4, 32], [6, 41], [10, 57], [16, 76], [25, 101], [35, 125], [50, 151], [70, 192]];
+const FCA = [1, 1, 0.80, 0.70, 0.65, 0.60, 0.57, 0.54, 0.52, 0.50]; // fator de agrupamento por nº de circuitos no mesmo eletroduto
 const MOLH_CIRC = ['cozinha', 'copa', 'area_servico'];
+const DISJ = [10, 16, 20, 25, 32, 40, 50, 63, 70, 80, 100, 125];
+const agrup = () => Math.min(Math.max(proj.agrup || 3, 1), 9);
+const fca = () => FCA[agrup()];
+const secMin = tipo => tipo === 'Iluminação' ? 1.5 : 2.5;
+const maiorDisj = sec => { const iz = CAP.find(c => c[0] === sec)[1] * fca(); return [...DISJ].reverse().find(d => d <= iz) || 0; };
+function dimensionar(c) { // escolhe disjuntor e seção pela regra Ib ≤ In ≤ Iz
+  const ib = c.i, inn = DISJ.find(d => d >= ib - 1e-9) || DISJ[DISJ.length - 1];
+  const ok = CAP.find(([s, cap]) => s >= secMin(c.tipo) && cap * fca() >= inn) || CAP[CAP.length - 1];
+  return { inn, sec: ok[0], cap: ok[1], iz: ok[1] * fca() };
+}
 function agrupar(itens, lim) {
   const cs = []; let atual = null;
   itens.forEach(it => { if (!atual || atual.va + it.va > lim) { atual = { va: 0, itens: [] }; cs.push(atual); } atual.va += it.va; atual.itens.push(it); });
@@ -564,29 +577,31 @@ function agrupar(itens, lim) {
 }
 function resumoItens(its) { const m = new Map(); its.forEach(i => m.set(i.nome, (m.get(i.nome) || 0) + i.n)); return [...m].map(([n, q]) => `${esc(n)}${q > 1 ? ` (${q})` : ''}`).join(', '); }
 function circuitos() {
-  const V = tensao(), lim = 10 * V, cs = proj.comodos, out = [];
+  const V = tensao(), limL = maiorDisj(1.5) * V, limT = maiorDisj(2.5) * V, lim = limT, cs = proj.comodos, out = [];
   const luz = cs.map(c => ({ nome: c.nome, va: iluminacao(c.pts).va, n: 1 }));
-  agrupar(luz, lim).forEach(g => out.push({ tipo: 'Iluminação', desc: resumoItens(g.itens), va: g.va }));
+  agrupar(luz, limL).forEach(g => out.push({ tipo: 'Iluminação', desc: resumoItens(g.itens), va: g.va }));
   const tomadas = grupo => cs.filter(grupo).flatMap(c => { const t = tug(c), arr = []; for (let k = 1; k <= t.min; k++) arr.push({ nome: c.nome, va: tugVA(c.tipo, k) - tugVA(c.tipo, k - 1), n: 1 }); return arr; });
   agrupar(tomadas(c => !MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG', desc: resumoItens(g.itens), va: g.va }));
   agrupar(tomadas(c => MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG (cozinha/serviço)', desc: resumoItens(g.itens), va: g.va }));
   cs.forEach(c => (c.tue || []).forEach(u => out.push({ tipo: 'TUE', desc: `${esc(u.nome)} (${esc(c.nome)})`, va: tueVA(u), exclusivo: tueA(u) > 10 })));
-  out.forEach((c, i) => { c.n = i + 1; c.i = c.va / V; });
-  return { lista: out, V, lim };
+  out.forEach((c, i) => { c.n = i + 1; c.i = c.va / V; Object.assign(c, dimensionar(c)); });
+  return { lista: out, V, lim, limL, limT };
 }
 function mostrarCircuitos() {
-  const { lista, V, lim } = circuitos();
+  const { lista, V, limL, limT } = circuitos();
   const ls = arr => `<ul class="passos">${arr.map(x => `<li>${x}</li>`).join('')}</ul>`;
-  const linhas = lista.map(c => `<tr><td class="n">${c.n}</td><td>${c.tipo}</td><td>${c.desc}</td><td class="n">${c.va}</td><td class="n">${fmt(c.i, 1)}</td></tr>`).join('');
+  const linhas = lista.map(c => `<tr><td class="n">${c.n}</td><td>${c.tipo}</td><td>${c.desc}</td><td class="n">${c.va}</td><td class="n">${fmt(c.i, 1)}</td><td class="n">${fmt(c.sec, 1).replace(',0', '')}</td><td class="n">${c.inn}</td></tr>`).join('');
   const nL = lista.filter(c => c.tipo === 'Iluminação').length, nT = lista.filter(c => c.tipo === 'TUG').length, nM = lista.filter(c => c.tipo.startsWith('TUG (')).length, nE = lista.filter(c => c.tipo === 'TUE').length;
   abrirModal(`<h2>🔀 Circuitos de ${esc(proj.nome)}</h2>
-    ${lista.length ? `<table><tr><th class="n">Nº</th><th>Tipo</th><th>Atende</th><th class="n">VA</th><th class="n">A</th></tr>${linhas}</table>` : '<div class="vazio">Desenhe os cômodos primeiro.</div>'}
+    ${lista.length ? `<table><tr><th class="n">Nº</th><th>Tipo</th><th>Atende</th><th class="n">VA</th><th class="n">Ib (A)</th><th class="n">Fio (mm²)</th><th class="n">Disj. (A)</th></tr>${linhas}</table>` : '<div class="vazio">Desenhe os cômodos primeiro.</div>'}
+    <div class="linha medidas" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">Circuitos no mesmo eletroduto (pior trecho): <select id="mAgr">${[1, 2, 3, 4, 5, 6].map(n => `<option ${n === agrup() ? 'selected' : ''}>${n}</option>`).join('')}</select> → fator ${fmt(fca(), 2)}</div>
     <h3 class="exp-t">Por que ficou assim?</h3>
-    <div class="exp-norma"><b>📘 O que a norma diz</b>${ls(['Iluminação e tomadas devem ficar em <b>circuitos separados</b>.', 'As tomadas de <b>cozinha, copa, área de serviço e lavanderia</b> devem ter circuitos <b>só para elas</b>, sem misturar com outros cômodos.', 'Todo aparelho com corrente acima de <b>10 A</b> precisa de <b>circuito independente</b>.', 'Os circuitos devem ser divididos para facilitar manutenção e evitar que um defeito desligue a casa toda.'])}</div>
-    <div class="exp-aplic"><b>🧮 Como foi aplicado na sua casa</b>${ls([`Critério do EletroMaster (prática usual, não é número da norma): cada circuito de luz ou TUG vai até <b>10 A</b> → 10 × ${V} V = <b>${lim} VA</b>. Passou disso, abre outro circuito.`, `Iluminação: ${nL} circuito(s), separados das tomadas.`, `TUG dos outros cômodos: ${nT} circuito(s).`, `TUG de cozinha/copa/área de serviço: ${nM} circuito(s), exclusivos dessas áreas. Nas tomadas de 600 VA o somatório enche o circuito mais rápido.`, `TUE: ${nE} circuito(s), um por aparelho${lista.some(c => c.exclusivo) ? ` (os de mais de 10 A são obrigatórios pela norma; os outros são boa prática)` : ''}.`, 'A bitola do fio e o disjuntor de cada circuito vêm nos próximos módulos.'])}</div>
-    <p class="aviso">Regras da NBR 5410 (item 9.5.3) explicadas com nossas palavras. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
+    <div class="exp-norma"><b>📘 O que a norma diz</b>${ls(['Iluminação e tomadas devem ficar em <b>circuitos separados</b>.', 'As tomadas de <b>cozinha, copa, área de serviço e lavanderia</b> devem ter circuitos <b>só para elas</b>, sem misturar com outros cômodos.', 'Todo aparelho com corrente acima de <b>10 A</b> precisa de <b>circuito independente</b>.', 'Os circuitos devem ser divididos para facilitar manutenção e evitar que um defeito desligue a casa toda.', 'A norma não fixa potência máxima por circuito. O que vale é: <b>corrente do circuito (Ib) ≤ disjuntor (In) ≤ capacidade do fio (Iz)</b>.', 'Seção mínima do fio de cobre: <b>1,5 mm²</b> em iluminação e <b>2,5 mm²</b> em tomadas e força.', 'A capacidade do fio diminui quando vários circuitos passam no mesmo eletroduto (<b>fator de agrupamento</b>) e em ambientes mais quentes que 30 °C.', 'Valores de capacidade usados: cobre com isolação PVC, eletroduto embutido em alvenaria, 2 condutores carregados, 30 °C.'])}</div>
+    <div class="exp-aplic"><b>🧮 Como foi aplicado na sua casa</b>${ls([`Fio mínimo: 1,5 mm² na luz, 2,5 mm² nas tomadas. Com ${agrup()} circuito(s) no mesmo eletroduto o fio aguenta menos (fator ${fmt(fca(), 2)}): 1,5 mm² → ${fmt(17.5 * fca(), 1)} A e 2,5 mm² → ${fmt(24 * fca(), 1)} A.`, `Por isso cada circuito de luz vai até o disjuntor de ${maiorDisj(1.5)} A (${limL} VA em ${V} V) e cada circuito de TUG até ${maiorDisj(2.5)} A (${limT} VA). Passou disso, o app abre outro circuito.`, `Iluminação: ${nL} circuito(s) · TUG: ${nT} · TUG de cozinha/serviço: ${nM} (exclusivos) · TUE: ${nE}, um por aparelho${lista.some(c => c.exclusivo) ? ' (os de mais de 10 A são obrigatórios pela norma)' : ''}.`, ...lista.filter(c => c.tipo === 'TUE' || c.sec > secMin(c.tipo)).map(c => `Circuito ${c.n}: Ib = ${c.va} ÷ ${V} = ${fmt(c.i, 1)} A → disjuntor ${c.inn} A → precisa de fio que aguente ≥ ${c.inn} A: ${fmt(c.sec, 1).replace(',0', '')} mm² aguenta ${c.cap} × ${fmt(fca(), 2)} = ${fmt(c.iz, 1)} A ✔.`), 'Ainda falta a queda de tensão, que depende do comprimento do fio: entra quando as tomadas e o quadro forem posicionados na planta.'])}</div>
+    <p class="aviso">Regras da NBR 5410 (itens 9.5.3, 6.2.6 e 5.3) explicadas com nossas palavras. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
     <div class="botoes"><button class="btn" id="mVolta">← Cômodos</button><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal; $('#mVolta').onclick = () => $('#btnComodos').onclick();
+  $('#mAgr').onchange = e => { proj.agrup = +e.target.value; gravar(); mostrarCircuitos(); };
 }
 // ---------- explicação: o que a norma diz + como foi aplicado ----------
 function regraTUG(tipo) {
@@ -869,7 +884,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=18').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=19').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
