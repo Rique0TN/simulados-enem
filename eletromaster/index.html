@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.svg">
 <title>EletroMaster · Editor de planta</title>
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=27">
 </head>
 <body>
 
@@ -18,12 +18,17 @@
 <section id="telaProjetos" class="tela ativa">
   <header class="topo">
     <div class="marca"><span class="raio">⚡</span> EletroMaster</div>
+    <div id="contaArea" class="conta"></div>
   </header>
   <main class="lista-wrap">
-    <h1>Meus projetos <small style="font-size:11px;opacity:.5">v26</small></h1>
-    <button id="btnNovoProjeto" class="btn primario grande">+ Novo projeto</button>
-    <div id="listaProjetos"></div>
-    <p class="aviso">Ferramenta de apoio. Projeto elétrico oficial exige profissional habilitado e ART. Os projetos ficam salvos neste aparelho.</p>
+    <div class="abas"><button data-aba="meus" class="ativa">Meus projetos</button><button data-aba="comp">Compartilhados comigo</button></div>
+    <div id="abaMeus">
+      <h1>Meus projetos <small style="font-size:11px;opacity:.5">v27</small></h1>
+      <button id="btnNovoProjeto" class="btn primario grande">+ Novo projeto</button>
+      <div id="listaProjetos"></div>
+    </div>
+    <div id="abaComp" hidden><div class="vazio">Em breve: aqui vão aparecer os projetos que outras pessoas compartilharem com você, como colaborador (pode editar) ou visualizador (só vê).</div></div>
+    <p class="aviso">Ferramenta de apoio. Projeto elétrico oficial exige profissional habilitado e ART. <span id="avisoSalvo">Os projetos ficam salvos neste aparelho.</span></p>
   </main>
 </section>
 
@@ -32,6 +37,7 @@
   <header class="topo editor-topo">
     <button id="btnVoltar" class="icone" aria-label="Voltar">‹</button>
     <div id="nomeProjeto" class="nome-proj" title="Toque para renomear">Projeto</div>
+    <button id="btnNotasProj" class="icone" aria-label="Notas do projeto">📝</button>
     <button id="btnDesfazer" class="icone" aria-label="Desfazer">↶</button>
     <button id="btnRefazer" class="icone" aria-label="Refazer">↷</button>
   </header>
@@ -61,6 +67,7 @@
   </div>
 </div>
 
-<script src="app.js?v=26"></script>
+<script src="app.js?v=27"></script>
+<script src="nuvem.js?v=27"></script>
 </body>
 </html>

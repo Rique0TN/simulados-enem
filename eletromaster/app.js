@@ -83,7 +83,7 @@ function lerMedida(txt, unidadePadrao) {
 // ---------- armazenamento ----------
 let banco = carregar();
 function carregar() { try { return JSON.parse(localStorage.getItem(CHAVE)) || { projetos: [], unidade: 'm' }; } catch { return { projetos: [], unidade: 'm' }; } }
-function salvar() { try { localStorage.setItem(CHAVE, JSON.stringify(banco)); } catch (e) { aviso('Não consegui salvar no aparelho: ' + e.message); } }
+function salvar() { try { localStorage.setItem(CHAVE, JSON.stringify(banco)); } catch (e) { aviso('Não consegui salvar no aparelho: ' + e.message); } if (window.EMNuvem) EMNuvem.agendar(); }
 
 // ---------- tela de projetos ----------
 function mostrarTela(id) { document.querySelectorAll('.tela').forEach(t => t.classList.toggle('ativa', t.id === id)); }
@@ -101,6 +101,7 @@ function renderLista() {
       <div class="acoes">
         <button class="btn primario" data-acao="abrir">Abrir</button>
         <button class="btn" data-acao="renomear">Renomear</button>
+        <button class="btn" data-acao="notas">📝 Notas${p.notas ? ' •' : ''}</button>
         <button class="btn" data-acao="duplicar">Duplicar</button>
         <button class="btn perigo" data-acao="excluir">Excluir</button>
       </div></div>`;
@@ -113,7 +114,8 @@ $('#listaProjetos').addEventListener('click', e => {
   if (acao === 'abrir') abrirProjeto(id);
   else if (acao === 'renomear') pedirTexto('Renomear projeto', p.nome, n => { p.nome = n; p.atualizado = Date.now(); salvar(); renderLista(); });
   else if (acao === 'duplicar') { const c = clone(p); c.id = uid(); c.nome = p.nome + ' (cópia)'; c.criado = c.atualizado = Date.now(); banco.projetos.push(c); salvar(); renderLista(); }
-  else if (acao === 'excluir') confirmar(`Excluir "${p.nome}"? Não dá pra desfazer.`, () => { banco.projetos = banco.projetos.filter(x => x.id !== id); salvar(); renderLista(); });
+  else if (acao === 'excluir') confirmar(`Excluir "${p.nome}"? Não dá pra desfazer.`, () => { banco.projetos = banco.projetos.filter(x => x.id !== id); if (window.EMNuvem) EMNuvem.apagado(id); salvar(); renderLista(); });
+  else if (acao === 'notas') abrirNotas(p, renderLista);
 });
 $('#btnNovoProjeto').onclick = () => {
   pedirTexto('Nome do projeto', 'Casa ' + (banco.projetos.length + 1), nome => {
@@ -121,6 +123,21 @@ $('#btnNovoProjeto').onclick = () => {
     banco.projetos.push(p); salvar(); abrirProjeto(p.id);
   });
 };
+
+// bloco de notas por projeto
+function abrirNotas(p, depois) {
+  abrirModal(`<h2>📝 Notas · ${esc(p.nome)}</h2><div class="campo"><textarea id="mNotas" rows="9" maxlength="20000" placeholder="Anotações da obra: medidas, pedidos do cliente, materiais, pendências...">${esc(p.notas || '')}</textarea></div>
+    <div class="botoes"><button class="btn" id="mCanc">Cancelar</button><button class="btn primario" id="mOk">Salvar</button></div>`);
+  $('#mCanc').onclick = fecharModal;
+  $('#mOk').onclick = () => { p.notas = $('#mNotas').value; p.atualizado = Date.now(); salvar(); fecharModal(); aviso('Notas salvas'); if (depois) depois(); };
+}
+// abas da tela inicial
+document.querySelectorAll('.abas [data-aba]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.abas [data-aba]').forEach(x => x.classList.toggle('ativa', x === b));
+  const meus = b.dataset.aba === 'meus';
+  $('#abaMeus').hidden = !meus; $('#abaComp').hidden = meus;
+});
+$('#btnNotasProj').onclick = () => proj && abrirNotas(proj);
 
 // ---------- modal ----------
 function abrirModal(html) { $('#modalConteudo').innerHTML = html; $('#modal').classList.remove('escondido'); }
@@ -1049,7 +1066,7 @@ function legendaPontos() {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=26').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=27').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
