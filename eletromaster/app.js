@@ -1,4 +1,4 @@
-/* EletroMaster — Módulos 1–4: editor de planta + projetos + área/perímetro
+/* EletroMaster — Módulos 1–5: editor de planta + projetos + área/perímetro
    Coordenadas internas em metros. Tudo salvo no localStorage do aparelho. */
 'use strict';
 
@@ -320,7 +320,7 @@ function render() {
     const ct = tela(centroide(c.pts));
     h += `<text x="${ct[0]}" y="${ct[1] - 4}" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">${esc(c.nome)}</text>
       <text x="${ct[0]}" y="${ct[1] + 13}" text-anchor="middle" font-size="12" fill="#ffc531">${fmt(area(c.pts))} m²</text>
-      <text x="${ct[0]}" y="${ct[1] + 28}" text-anchor="middle" font-size="11" fill="#7ee0a0">🔌 ${tug(c).min}–${tug(c).max} TUG</text>
+      <text x="${ct[0]}" y="${ct[1] + 28}" text-anchor="middle" font-size="11" fill="#7ee0a0">🔌 ${tug(c).min}–${tug(c).max} TUG${(c.tue || []).length ? ` · ⚡ ${c.tue.length} TUE` : ''}</text>
       <g transform="translate(${ct[0]},${ct[1] - 34})"><circle r="9" fill="#0d1626" stroke="#ffd84a" stroke-width="2"/><path d="M-6,-6L6,6M6,-6L-6,6" stroke="#ffd84a" stroke-width="2"/>
       <text x="13" y="4" font-size="11" fill="#ffd84a">${iluminacao(c.pts).va} VA</text></g>`;
     if (s && modo === 'selecionar') c.pts.forEach(p => { const P = tela(p); h += `<circle cx="${P[0]}" cy="${P[1]}" r="7" fill="#3b9cff" stroke="#fff" stroke-width="2"/>`; });
@@ -439,6 +439,7 @@ function renderPainel() {
     <div class="linha medidas">Área <b>${fmt(area(c.pts))} m²</b> · Perímetro <b>${fmt(perimetro(c.pts))} m</b> · ${c.pts.length} paredes</div>
     <div class="linha medidas">💡 Iluminação (NBR 5410): mín. <b>1 ponto no teto</b> com interruptor · carga mín. <b>${iluminacao(c.pts).va} VA</b></div>
     <div class="linha medidas">🔌 Tomadas TUG: mín. <b>${tug(c).min}</b> (NBR 5410: ${tug(c).obs}) · recomendado até <b>${tug(c).max}</b> · carga mín. <b>${tug(c).va} VA</b></div>
+    <div class="linha medidas">⚡ TUE: ${(c.tue || []).length ? (c.tue || []).map(u => `<span class="chip">${esc(u.nome)} ${u.w} W · ${fmt(tueA(u), 1)} A${tueA(u) > 10 ? ' · circ. exclusivo' : ''} <button class="x" data-tue="${u.id}">✕</button></span>`).join(' ') + ` · total <b>${tueTotal(c)} VA</b>` : 'nenhuma'} <button class="btn" id="btnTUE">+ TUE</button></div>
     <div class="linha"><button class="btn" id="btnPorque">❓ Por que esses valores?</button><button class="btn" id="btnDup">Duplicar</button><button class="btn perigo" id="btnExc">Excluir</button></div>`;
   p.querySelector('#inNome').onchange = e => { const v = e.target.value.trim(); if (!v) return; checkpoint(); c.nome = v; gravar(); render(); };
   p.querySelector('#selTipo').onchange = e => {
@@ -448,6 +449,8 @@ function renderPainel() {
   };
   p.querySelector('#btnExc').onclick = excluirComodo;
   p.querySelector('#btnPorque').onclick = () => explicar(c);
+  p.querySelector('#btnTUE').onclick = () => adicionarTUE(c);
+  p.querySelectorAll('[data-tue]').forEach(b => b.onclick = () => { checkpoint(); c.tue = c.tue.filter(u => u.id !== b.dataset.tue); gravar(); render(); });
   p.querySelector('#btnDup').onclick = () => {
     checkpoint(); const n = clone(c); n.id = uid(); n.nome = nomeAuto(n.tipo);
     const larg = Math.max(...c.pts.map(q => q[0])) - Math.min(...c.pts.map(q => q[0]));
@@ -458,35 +461,78 @@ function excluirComodo() {
   const c = comodo(sel.comodo); if (!c) return;
   confirmar(`Excluir ${c.nome}?`, () => { checkpoint(); proj.comodos = proj.comodos.filter(x => x.id !== c.id); sel = { comodo: null, parede: null }; gravar(); render(); });
 }
-// ---------- explicação passo a passo (base do modo aprendizagem) ----------
+// ---------- TUE (módulo 5) ----------
+// NBR 5410 (9.5.2.3): TUE recebe a potência nominal do equipamento e fica a no máximo 1,5 m do local dele.
+// Equipamento com corrente nominal acima de 10 A pede circuito independente.
+const TENSAO = 220; // Neoenergia Coelba (Salvador): 220 V fase-neutro
+const EQUIP = [
+  ['chuveiro', 'Chuveiro elétrico', 5500, 1], ['torneira', 'Torneira elétrica', 3500, 1], ['forno', 'Forno elétrico', 2000, 1],
+  ['cooktop', 'Cooktop de indução', 6000, 1], ['micro', 'Micro-ondas', 1400, 1], ['lavalouca', 'Lava-louças', 1500, 1],
+  ['maquina', 'Máquina de lavar', 1000, 0.8], ['secadora', 'Secadora de roupas', 3500, 1], ['ar9', 'Ar-condicionado 9.000 BTU', 850, 0.9],
+  ['ar12', 'Ar-condicionado 12.000 BTU', 1100, 0.9], ['ar18', 'Ar-condicionado 18.000 BTU', 1700, 0.9], ['aquecedor', 'Aquecedor de água (boiler)', 2500, 1],
+  ['outro', 'Outro equipamento', 1000, 1]
+];
+const SUGESTAO = { banheiro: ['chuveiro'], cozinha: ['torneira', 'micro', 'forno'], area_servico: ['maquina'], quarto: ['ar9'], sala: ['ar12'], escritorio: ['ar9'] };
+const equip = k => EQUIP.find(e => e[0] === k) || EQUIP[EQUIP.length - 1];
+const tueVA = u => Math.round(u.w / u.fp);
+const tueA = u => tueVA(u) / TENSAO;
+function tueTotal(c) { return (c.tue || []).reduce((s, u) => s + tueVA(u), 0); }
+function adicionarTUE(c) {
+  const sug = SUGESTAO[c.tipo] || [];
+  const ops = EQUIP.map(([k, n, w]) => `<option value="${k}">${n}${sug.includes(k) ? ' ★' : ''}</option>`).join('');
+  abrirModal(`<h2>Adicionar TUE · ${esc(c.nome)}</h2>
+    <p class="aviso" style="margin:0 0 10px">TUE = tomada de uso específico, para um aparelho fixo (chuveiro, ar, forno...). ★ = comum neste cômodo.</p>
+    <div class="campo"><label>Equipamento</label><select id="mEq">${ops}</select></div>
+    <div class="campo"><label>Nome</label><input id="mNomeEq" type="text" maxlength="40"></div>
+    <div class="campo"><label>Potência (W) — confira na etiqueta do aparelho</label><input id="mW" type="number" inputmode="numeric" min="1"></div>
+    <div class="botoes"><button class="btn" id="mCanc">Cancelar</button><button class="btn primario" id="mOk">Adicionar</button></div>`);
+  const pre = () => { const e = equip($('#mEq').value); $('#mNomeEq').value = e[1]; $('#mW').value = e[2]; };
+  if (sug[0]) $('#mEq').value = sug[0]; pre(); $('#mEq').onchange = pre;
+  $('#mCanc').onclick = fecharModal;
+  $('#mOk').onclick = () => {
+    const w = parseFloat(String($('#mW').value).replace(',', '.')); if (!(w > 0)) { $('#mW').style.borderColor = '#ff5d5d'; return; }
+    const e = equip($('#mEq').value); checkpoint(); c.tue = c.tue || [];
+    c.tue.push({ id: uid(), eq: e[0], nome: $('#mNomeEq').value.trim() || e[1], w, fp: e[3] }); fecharModal(); gravar(); render();
+  };
+}
+// ---------- explicação: o que a norma diz + como foi aplicado ----------
+function regraTUG(tipo) {
+  if (tipo === 'banheiro' || tipo === 'lavabo') return ['Em banheiros, deve haver <b>pelo menos 1 tomada perto do lavatório</b> (pia).', 'A tomada precisa respeitar a distância do box/banheira definida pela norma para áreas molhadas (volumes de risco).'];
+  if (['cozinha', 'copa', 'area_servico'].includes(tipo)) return ['Em cozinhas, copas, áreas de serviço e lavanderias: <b>1 tomada a cada 3,5 m de perímetro</b>, ou fração.', 'Acima de cada bancada de pia com 30 cm ou mais de largura: <b>pelo menos 2 tomadas</b>, no mesmo ponto ou separadas.', 'Potência: <b>600 VA</b> em cada uma das <b>3 primeiras</b> tomadas e <b>100 VA</b> nas demais. Se o cômodo tiver <b>mais de 6</b>, pode-se usar 600 VA em só <b>2</b> e 100 VA no resto.'];
+  if (tipo === 'sala' || tipo === 'quarto') return ['Em salas e dormitórios: <b>1 tomada a cada 5 m de perímetro</b>, ou fração.', 'As tomadas devem ficar <b>espalhadas da forma mais uniforme possível</b> pelo cômodo.', 'Potência: <b>100 VA</b> por tomada.'];
+  if (tipo === 'varanda') return ['Em varandas: <b>pelo menos 1 tomada</b>.', 'Se a varanda for pequena e não couber, pode ficar perto do acesso a ela.', 'Potência: <b>100 VA</b> por tomada.'];
+  return ['Nos demais cômodos: até <b>2,25 m²</b>, pelo menos 1 tomada (pode ficar do lado de fora, a até 0,80 m da porta).', 'De <b>2,25 m² a 6 m²</b>: pelo menos 1 tomada.', 'Acima de <b>6 m²</b>: <b>1 tomada a cada 5 m de perímetro</b>, ou fração, bem distribuídas.', 'Potência: <b>100 VA</b> por tomada.'];
+}
 function explicar(c) {
-  const a = area(c.pts), p = perimetro(c.pts), L = iluminacao(c.pts), t = tug(c), mol = MOLHADAS.includes(c.tipo);
-  let luz;
-  if (a <= 6) luz = `<li>Área de <b>${fmt(a)} m²</b> é até 6 m² → a norma pede no mínimo <b>100 VA</b>.</li>`;
-  else { const sobra = a - 6, blocos = Math.floor(sobra / 4 + 1e-9);
-    luz = `<li>Os primeiros 6 m² valem <b>100 VA</b>.</li>
-      <li>Sobram ${fmt(a)} − 6 = <b>${fmt(sobra)} m²</b>. A cada <b>4 m² inteiros</b> somam-se 60 VA: ${fmt(sobra)} ÷ 4 = ${fmt(sobra / 4)} → <b>${blocos}</b> bloco(s) inteiro(s) (a fração que sobra não conta).</li>
-      <li>100 + ${blocos} × 60 = <b>${L.va} VA</b>.</li>`; }
-  let qtd;
-  if (['cozinha', 'copa', 'area_servico'].includes(c.tipo)) qtd = `<li>Cozinha, copa e área de serviço: <b>1 tomada a cada 3,5 m</b> de perímetro (ou fração).</li>
-      <li>${fmt(p)} ÷ 3,5 = ${fmt(p / 3.5)} → como sobra fração, arredonda pra cima: <b>${Math.ceil(p / 3.5 - 1e-9)}</b>.</li>${c.tipo !== 'area_servico' ? '<li>Acima da bancada da pia: pelo menos <b>2 tomadas</b> (podem estar no mesmo ponto ou separadas).</li>' : ''}`;
-  else if (c.tipo === 'sala' || c.tipo === 'quarto') qtd = `<li>Sala e quarto: <b>1 tomada a cada 5 m</b> de perímetro (ou fração), espalhadas o mais uniforme possível.</li>
-      <li>${fmt(p)} ÷ 5 = ${fmt(p / 5)} → arredonda pra cima: <b>${t.min}</b>.</li>`;
-  else if (c.tipo === 'banheiro' || c.tipo === 'lavabo') qtd = `<li>Banheiro: pelo menos <b>1 tomada junto ao lavatório</b> (pia), respeitando a distância do box/chuveiro.</li>`;
-  else if (c.tipo === 'varanda') qtd = `<li>Varanda: pelo menos <b>1 tomada</b>.</li>`;
-  else qtd = a <= 6 ? `<li>Cômodo de até 6 m²: pelo menos <b>1 tomada</b>${a <= 2.25 ? ' (até 2,25 m² ela pode ficar do lado de fora, a até 0,80 m da porta)' : ''}.</li>`
-    : `<li>Acima de 6 m²: <b>1 tomada a cada 5 m</b> de perímetro (ou fração): ${fmt(p)} ÷ 5 = ${fmt(p / 5)} → <b>${t.min}</b>.</li>`;
-  let va;
-  if (!mol) va = `<li>Neste tipo de cômodo cada tomada de uso geral conta <b>100 VA</b>: ${t.min} × 100 = <b>${t.va} VA</b>.</li>`;
-  else { const g = t.min > 6 ? 2 : Math.min(t.min, 3), r = t.min - g;
-    va = `<li>Áreas molhadas (cozinha, copa, área de serviço, banheiro) recebem aparelhos mais fortes (micro-ondas, airfryer, secador). Por isso a norma manda contar <b>600 VA</b> nas <b>3 primeiras</b> tomadas e <b>100 VA</b> nas outras.</li>
-      <li>${g} × 600${r ? ` + ${r} × 100` : ''} = <b>${t.va} VA</b>.</li>
-      <li>Se o cômodo tiver <b>mais de 6 tomadas</b>, a norma deixa contar 600 VA em só <b>2</b> e 100 VA no resto, porque é improvável usar tudo ao mesmo tempo. ${t.max > 6 ? `Por isso, com ${t.max} tomadas a carga fica ${tugVA(c.tipo, t.max)} VA, menor que com ${t.min}.` : ''}</li>`; }
-  abrirModal(`<h2>Por que esses valores? · ${esc(c.nome)}</h2>
-    <h3 style="margin:10px 0 4px">💡 Iluminação</h3><ul class="passos"><li>Pelo menos <b>1 ponto de luz no teto</b>, com interruptor.</li>${luz}</ul>
-    <h3 style="margin:10px 0 4px">🔌 Quantas tomadas (TUG)</h3><ul class="passos">${qtd}<li>O máximo (<b>${t.max}</b>) é uma <b>recomendação do EletroMaster</b> pra uso confortável; a norma só fixa o mínimo.</li></ul>
-    <h3 style="margin:10px 0 4px">⚡ Carga das tomadas</h3><ul class="passos">${va}</ul>
-    <p class="aviso">Regras da NBR 5410 (item 9.5.2) explicadas com nossas palavras. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
+  const a = area(c.pts), p = perimetro(c.pts), L = iluminacao(c.pts), t = tug(c), mol = MOLHADAS.includes(c.tipo), tipo = nomeTipo(c.tipo);
+  const lista = arr => `<ul class="passos">${arr.map(x => `<li>${x}</li>`).join('')}</ul>`;
+  const bloco = (titulo, norma, aplic) => `<h3 class="exp-t">${titulo}</h3><div class="exp-norma"><b>📘 O que a norma diz</b>${lista(norma)}</div><div class="exp-aplic"><b>🧮 Como foi aplicado em ${esc(c.nome)}</b>${lista(aplic)}</div>`;
+  // iluminação
+  const luzN = ['Todo cômodo precisa de <b>pelo menos 1 ponto de luz no teto</b>, com interruptor.', 'Carga mínima: <b>100 VA</b> para os primeiros <b>6 m²</b>, mais <b>60 VA</b> a cada <b>4 m² inteiros</b> que passarem disso.'];
+  let luzA;
+  if (a <= 6) luzA = [`Área de <b>${fmt(a)} m²</b> → até 6 m², então fica nos <b>100 VA</b>.`];
+  else { const sobra = a - 6, bl = Math.floor(sobra / 4 + 1e-9);
+    luzA = [`Área: <b>${fmt(a)} m²</b>. Primeiros 6 m² → 100 VA.`, `Sobram ${fmt(a)} − 6 = <b>${fmt(sobra)} m²</b> → ${fmt(sobra)} ÷ 4 = ${fmt(sobra / 4)} → <b>${bl}</b> bloco(s) de 4 m² inteiros (a fração não conta).`, `100 + ${bl} × 60 = <b>${L.va} VA</b>, em 1 ponto no teto.`]; }
+  // TUG
+  let tugA = [];
+  if (['cozinha', 'copa', 'area_servico'].includes(c.tipo)) { const n = Math.ceil(p / 3.5 - 1e-9);
+    tugA.push(`Perímetro: <b>${fmt(p)} m</b> → ${fmt(p)} ÷ 3,5 = ${fmt(p / 3.5)} → com fração arredonda pra cima: <b>${n}</b>.`);
+    if (c.tipo !== 'area_servico') tugA.push(`Dessas, <b>2</b> devem ficar acima da bancada da pia.${n < 2 ? ' Como a conta deu menos de 2, o mínimo sobe pra 2.' : ''}`); }
+  else if (c.tipo === 'sala' || c.tipo === 'quarto' || (!['banheiro', 'lavabo', 'varanda'].includes(c.tipo) && a > 6))
+    tugA.push(`${a > 6 && !['sala', 'quarto'].includes(c.tipo) ? `Área de ${fmt(a)} m² passa de 6 m². ` : ''}Perímetro: <b>${fmt(p)} m</b> → ${fmt(p)} ÷ 5 = ${fmt(p / 5)} → arredonda pra cima: <b>${t.min}</b>.`);
+  else if (c.tipo === 'banheiro' || c.tipo === 'lavabo') tugA.push(`${tipo}: <b>1</b> tomada junto à pia.`);
+  else if (c.tipo === 'varanda') tugA.push('Varanda: <b>1</b> tomada.');
+  else tugA.push(`Área de <b>${fmt(a)} m²</b> → ${a <= 2.25 ? 'até 2,25 m²' : 'entre 2,25 e 6 m²'}: <b>1</b> tomada.`);
+  if (mol) { const g = t.min > 6 ? 2 : Math.min(t.min, 3), r = t.min - g; tugA.push(`Carga: ${g} × 600${r ? ` + ${r} × 100` : ''} = <b>${t.va} VA</b>.`); }
+  else tugA.push(`Carga: ${t.min} × 100 = <b>${t.va} VA</b>.`);
+  tugA.push(`Máximo de <b>${t.max}</b>: recomendação do EletroMaster pra uso confortável (a norma só fixa o mínimo). Com ${t.max} tomadas a carga seria ${tugVA(c.tipo, t.max)} VA${mol && t.max > 6 ? ' (menor, por causa da regra de mais de 6 tomadas)' : ''}.`);
+  // TUE
+  const tueN = ['Cada TUE recebe a <b>potência nominal</b> do aparelho (a da etiqueta).', 'A tomada (ou ponto) fica a <b>no máximo 1,5 m</b> do lugar do aparelho.', 'Aparelho com corrente acima de <b>10 A</b> deve ter <b>circuito só dele</b>.'];
+  const us = c.tue || [];
+  const tueAp = us.length ? us.map(u => `${esc(u.nome)}: ${u.w} W${u.fp < 1 ? ` ÷ ${fmt(u.fp, 1)} (fator de potência) = ${tueVA(u)} VA` : ` = ${tueVA(u)} VA`} → ${tueVA(u)} ÷ ${TENSAO} V = <b>${fmt(tueA(u), 1)} A</b>${tueA(u) > 10 ? ' → passa de 10 A: <b>circuito exclusivo</b>.' : ' → até 10 A.'}`).concat([`Total de TUE: <b>${tueTotal(c)} VA</b>.`]) : ['Nenhuma TUE neste cômodo ainda. Use "+ TUE" pra adicionar chuveiro, ar, forno etc.'];
+  abrirModal(`<h2>Por que esses valores? · ${esc(c.nome)} (${tipo})</h2>
+    ${bloco('💡 Iluminação', luzN, luzA)}${bloco(`🔌 Tomadas de uso geral (TUG) em ${tipo.toLowerCase()}`, regraTUG(c.tipo), tugA)}${bloco("⚡ Tomadas de uso específico (TUE)", tueN, tueAp)}
+    <p class="aviso">Regras da NBR 5410 (item 9.5.2) explicadas com nossas palavras, sem copiar o texto da ABNT. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
     <div class="botoes"><button class="btn" id="mCanc">Entendi</button></div>`);
   $('#mCanc').onclick = fecharModal;
 }
@@ -557,12 +603,12 @@ $('#btnRetangulo').onclick = () => {
 // ---------- lista de cômodos ----------
 $('#btnComodos').onclick = () => {
   if (!proj.comodos.length) { abrirModal('<h2>Cômodos</h2><div class="vazio">Nenhum cômodo desenhado ainda.</div><div class="botoes"><button class="btn" id="mCanc">Fechar</button></div>'); $('#mCanc').onclick = fecharModal; return; }
-  let ta = 0, tp = 0, tv = 0, tn = 0, tt = 0;
-  const linhas = proj.comodos.map(c => { const a = area(c.pts), p = perimetro(c.pts), v = iluminacao(c.pts).va, t = tug(c); ta += a; tp += p; tv += v; tn += t.min; tt += t.va; return `<tr class="clicavel" data-id="${c.id}"><td>${esc(c.nome)}</td><td>${nomeTipo(c.tipo)}</td><td class="n">${fmt(a)}</td><td class="n">${fmt(p)}</td><td class="n">${v}</td><td class="n">${t.min}–${t.max}</td><td class="n">${t.va}</td></tr>`; }).join('');
+  let ta = 0, tp = 0, tv = 0, tn = 0, tt = 0, te = 0;
+  const linhas = proj.comodos.map(c => { const a = area(c.pts), p = perimetro(c.pts), v = iluminacao(c.pts).va, t = tug(c); ta += a; tp += p; tv += v; tn += t.min; tt += t.va; const e = tueTotal(c); te += e; return `<tr class="clicavel" data-id="${c.id}"><td>${esc(c.nome)}</td><td>${nomeTipo(c.tipo)}</td><td class="n">${fmt(a)}</td><td class="n">${fmt(p)}</td><td class="n">${v}</td><td class="n">${t.min}–${t.max}</td><td class="n">${t.va}</td><td class="n">${e}</td></tr>`; }).join('');
   abrirModal(`<h2>Cômodos de ${esc(proj.nome)}</h2>
-    <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th><th class="n">Luz (VA)</th><th class="n">TUG</th><th class="n">TUG (VA)</th></tr>${linhas}
-    <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td><td class="n">${tv}</td><td class="n">${tn}</td><td class="n">${tt}</td></tr></table>
-    <p class="aviso" style="margin-top:10px">Luz: mínimo pela NBR 5410 (1 ponto no teto por cômodo; 100 VA até 6 m², +60 VA a cada 4 m² inteiros). TUG: mínimo da NBR 5410 – máximo recomendado pelo app; VA calculado com o mínimo (600 VA nas 3 primeiras de cozinha, copa, área de serviço e banheiro; 100 VA nas demais). Ferramenta de apoio: confira com profissional habilitado.</p>
+    <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th><th class="n">Luz (VA)</th><th class="n">TUG</th><th class="n">TUG (VA)</th><th class="n">TUE (VA)</th></tr>${linhas}
+    <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td><td class="n">${tv}</td><td class="n">${tn}</td><td class="n">${tt}</td><td class="n">${te}</td></tr></table>
+    <p class="aviso" style="margin-top:10px">Luz: mínimo pela NBR 5410 (1 ponto no teto por cômodo; 100 VA até 6 m², +60 VA a cada 4 m² inteiros). TUG: mínimo da NBR 5410 – máximo recomendado pelo app; VA calculado com o mínimo (600 VA nas 3 primeiras de cozinha, copa, área de serviço e banheiro; 100 VA nas demais). TUE: potência do aparelho; acima de 10 A em 220 V, circuito exclusivo. Ferramenta de apoio: confira com profissional habilitado.</p>
     <div class="botoes"><button class="btn" id="mImg">📷 Imagem da planta</button><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal; $('#mImg').onclick = () => { fecharModal(); exportarImagem(); };
   $('#modalConteudo').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { fecharModal(); definirModo('selecionar'); sel = { comodo: tr.dataset.id, parede: null }; render(); });
@@ -730,7 +776,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=12').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=13').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
