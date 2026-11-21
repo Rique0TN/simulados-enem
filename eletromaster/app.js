@@ -568,41 +568,48 @@ const agrup = () => Math.min(Math.max(proj.agrup || 3, 1), 9);
 const fca = () => FCA[agrup()];
 const secMin = tipo => tipo === 'Iluminação' ? 1.5 : 2.5;
 const maiorDisj = sec => { const iz = CAP.find(c => c[0] === sec)[1] * fca(); return [...DISJ].reverse().find(d => d <= iz) || 0; };
-function dimensionar(c) { // escolhe disjuntor e seção pela regra Ib ≤ In ≤ Iz
+const RHO = 1 / 56, QUEDA_MAX = 4, SOBE_DESCE = 3; // cobre (Ω·mm²/m); limite p/ circuitos terminais; m de subidas/descidas
+function qdcPos() { for (const c of proj.comodos) { const q = (c.pontos || []).find(x => x.k === 'qdc'); if (q) { const g = geoPonto(c, q); if (g) return g.m; } } return null; }
+const distQdc = (p, Q) => Q ? Math.abs(p[0] - Q[0]) + Math.abs(p[1] - Q[1]) + SOBE_DESCE : null; // caminho em "L" (como o eletroduto anda) + subidas/descidas
+const queda = (ib, L, S) => 2 * RHO * L * ib / S / tensao() * 100;
+function dimensionar(c) { // escolhe disjuntor e seção pela regra Ib ≤ In ≤ Iz e pela queda de tensão
   const ib = c.i, inn = DISJ.find(d => d >= ib - 1e-9) || DISJ[DISJ.length - 1];
-  const ok = CAP.find(([s, cap]) => s >= secMin(c.tipo) && cap * fca() >= inn) || CAP[CAP.length - 1];
-  const iz = ok[1] * fca(), dmax = [...DISJ].reverse().find(d => d <= iz + 1e-9) || inn;
-  return { inn, sec: ok[0], cap: ok[1], iz, dmin: inn, dmax };
+  let k = CAP.findIndex(([s, cap]) => s >= secMin(c.tipo) && cap * fca() >= inn); if (k < 0) k = CAP.length - 1;
+  const kAmp = k;
+  if (c.L != null) while (k < CAP.length - 1 && queda(ib, c.L, CAP[k][0]) > QUEDA_MAX) k++;
+  const ok = CAP[k], iz = ok[1] * fca(), dmax = [...DISJ].reverse().find(d => d <= iz + 1e-9) || inn;
+  return { inn, sec: ok[0], cap: ok[1], iz, dmin: inn, dmax, dv: c.L != null ? queda(ib, c.L, ok[0]) : null, dvAntes: c.L != null ? queda(ib, c.L, CAP[kAmp][0]) : null, secAmp: CAP[kAmp][0], porQueda: k > kAmp };
 }
 function agrupar(itens, lim) {
   const cs = []; let atual = null;
-  itens.forEach(it => { if (!atual || atual.va + it.va > lim) { atual = { va: 0, itens: [] }; cs.push(atual); } atual.va += it.va; atual.itens.push(it); });
+  itens.forEach(it => { if (!atual || atual.va + it.va > lim) { atual = { va: 0, itens: [], L: null }; cs.push(atual); } atual.va += it.va; atual.itens.push(it); if (it.d != null) atual.L = Math.max(atual.L || 0, it.d); });
   return cs;
 }
 function resumoItens(its) { const m = new Map(); its.forEach(i => m.set(i.nome, (m.get(i.nome) || 0) + i.n)); return [...m].map(([n, q]) => `${esc(n)}${q > 1 ? ` (${q})` : ''}`).join(', '); }
 function circuitos() {
-  const V = tensao(), limL = maiorDisj(1.5) * V, limT = maiorDisj(2.5) * V, lim = limT, cs = proj.comodos, out = [];
-  const luz = cs.map(c => ({ nome: c.nome, va: iluminacao(c.pts).va, n: 1 }));
-  agrupar(luz, limL).forEach(g => out.push({ tipo: 'Iluminação', desc: resumoItens(g.itens), va: g.va }));
-  const tomadas = grupo => cs.filter(grupo).flatMap(c => { const t = tug(c), arr = []; for (let k = 1; k <= t.n; k++) arr.push({ nome: c.nome, va: tugVA(c.tipo, k) - tugVA(c.tipo, k - 1), n: 1 }); return arr; });
-  agrupar(tomadas(c => !MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG', desc: resumoItens(g.itens), va: g.va }));
-  agrupar(tomadas(c => MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG (cozinha/serviço)', desc: resumoItens(g.itens), va: g.va }));
-  cs.forEach(c => (c.tue || []).forEach(u => out.push({ tipo: 'TUE', desc: `${esc(u.nome)} (${esc(c.nome)})`, va: tueVA(u), exclusivo: tueA(u) > 10 })));
+  const Q = qdcPos(), V = tensao(), limL = maiorDisj(1.5) * V, limT = maiorDisj(2.5) * V, lim = limT, cs = proj.comodos, out = [];
+  const luz = cs.map(c => ({ nome: c.nome, va: iluminacao(c.pts).va, n: 1, d: distQdc(centroide(c.pts), Q) }));
+  agrupar(luz, limL).forEach(g => out.push({ tipo: 'Iluminação', desc: resumoItens(g.itens), va: g.va, L: g.L }));
+  const tomadas = grupo => cs.filter(grupo).flatMap(c => { const t = tug(c), arr = [], tom = (c.pontos || []).filter(q => q.k === 'tom').map(q => geoPonto(c, q)).filter(Boolean).map(g => g.m);
+    for (let k = 1; k <= t.n; k++) arr.push({ nome: c.nome, va: tugVA(c.tipo, k) - tugVA(c.tipo, k - 1), n: 1, d: distQdc(tom[k - 1] || centroide(c.pts), Q) }); return arr; });
+  agrupar(tomadas(c => !MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG', desc: resumoItens(g.itens), va: g.va, L: g.L }));
+  agrupar(tomadas(c => MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG (cozinha/serviço)', desc: resumoItens(g.itens), va: g.va, L: g.L }));
+  cs.forEach(c => (c.tue || []).forEach(u => out.push({ tipo: 'TUE', desc: `${esc(u.nome)} (${esc(c.nome)})`, va: tueVA(u), exclusivo: tueA(u) > 10, L: distQdc(centroide(c.pts), Q) })));
   out.forEach((c, i) => { c.n = i + 1; c.i = c.va / V; Object.assign(c, dimensionar(c)); });
-  return { lista: out, V, lim, limL, limT };
+  return { lista: out, V, lim, limL, limT, Q };
 }
 function mostrarCircuitos() {
-  const { lista, V, limL, limT } = circuitos();
+  const { lista, V, limL, limT, Q } = circuitos();
   const ls = arr => `<ul class="passos">${arr.map(x => `<li>${x}</li>`).join('')}</ul>`;
-  const linhas = lista.map(c => `<tr><td class="n">${c.n}</td><td>${c.tipo}</td><td>${c.desc}</td><td class="n">${c.va}</td><td class="n">${fmt(c.i, 1)}</td><td class="n">${fmt(c.sec, 1).replace(',0', '')}</td><td class="n">${fmt(c.iz, 1)}</td><td class="n"><b>${c.inn}</b></td><td class="n">${c.dmin}–${c.dmax}</td></tr>`).join('');
+  const linhas = lista.map(c => `<tr><td class="n">${c.n}</td><td>${c.tipo}</td><td>${c.desc}</td><td class="n">${c.va}</td><td class="n">${fmt(c.i, 1)}</td><td class="n">${fmt(c.sec, 1).replace(',0', '')}</td><td class="n">${fmt(c.iz, 1)}</td><td class="n"><b>${c.inn}</b></td><td class="n">${c.dmin}–${c.dmax}</td><td class="n">${c.L != null ? fmt(c.L, 1) : '—'}</td><td class="n">${c.dv != null ? (c.dv > QUEDA_MAX ? '⚠️ ' : '') + fmt(c.dv, 2) : '—'}</td></tr>`).join('');
   const nL = lista.filter(c => c.tipo === 'Iluminação').length, nT = lista.filter(c => c.tipo === 'TUG').length, nM = lista.filter(c => c.tipo.startsWith('TUG (')).length, nE = lista.filter(c => c.tipo === 'TUE').length;
   abrirModal(`<h2>🔀 Circuitos de ${esc(proj.nome)}</h2>
-    ${lista.length ? `<table><tr><th class="n">Nº</th><th>Tipo</th><th>Atende</th><th class="n">VA</th><th class="n">Ib (A)</th><th class="n">Fio (mm²)</th><th class="n">Fio aguenta Iz (A)</th><th class="n">Disj. (A)</th><th class="n">Disj. mín–máx</th></tr>${linhas}</table>` : '<div class="vazio">Desenhe os cômodos primeiro.</div>'}
+    ${lista.length ? `<table><tr><th class="n">Nº</th><th>Tipo</th><th>Atende</th><th class="n">VA</th><th class="n">Ib (A)</th><th class="n">Fio (mm²)</th><th class="n">Fio aguenta Iz (A)</th><th class="n">Disj. (A)</th><th class="n">Disj. mín–máx</th><th class="n">Dist. (m)</th><th class="n">Queda (%)</th></tr>${linhas}</table>` : '<div class="vazio">Desenhe os cômodos primeiro.</div>'}
     <div class="linha medidas" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">Circuitos no mesmo eletroduto (pior trecho): <select id="mAgr">${[1, 2, 3, 4, 5, 6].map(n => `<option ${n === agrup() ? 'selected' : ''}>${n}</option>`).join('')}</select> → fator ${fmt(fca(), 2)}</div>
     <h3 class="exp-t">Por que ficou assim?</h3>
-    <div class="exp-norma"><b>📘 O que a norma diz</b>${ls(['Iluminação e tomadas devem ficar em <b>circuitos separados</b>.', 'As tomadas de <b>cozinha, copa, área de serviço e lavanderia</b> devem ter circuitos <b>só para elas</b>, sem misturar com outros cômodos.', 'Todo aparelho com corrente acima de <b>10 A</b> precisa de <b>circuito independente</b>.', 'Os circuitos devem ser divididos para facilitar manutenção e evitar que um defeito desligue a casa toda.', 'A norma não fixa potência máxima por circuito. O que vale é a <b>coordenação entre fio e disjuntor</b>: <b>Ib ≤ In ≤ Iz</b>.', '<b>Ib</b> = corrente que o circuito puxa (potência ÷ tensão). <b>In</b> = corrente nominal do disjuntor. <b>Iz</b> = corrente que o fio aguenta sem esquentar demais, já com os fatores de correção.', 'Em palavras: o disjuntor tem que <b>aguentar a carga sem desarmar</b> (In ≥ Ib) e <b>desarmar antes de o fio superaquecer</b> (In ≤ Iz). Por isso o disjuntor mínimo é o primeiro valor comercial acima de Ib, e o máximo é o maior valor que não passa de Iz.', 'Também se exige que a corrente que garante o desarme por sobrecarga não passe de 1,45 × Iz; os disjuntores residenciais (NBR NM 60898) já atendem isso quando In ≤ Iz.', 'Seção mínima do fio de cobre: <b>1,5 mm²</b> em iluminação e <b>2,5 mm²</b> em tomadas e força.', 'A capacidade do fio diminui quando vários circuitos passam no mesmo eletroduto (<b>fator de agrupamento</b>) e em ambientes mais quentes que 30 °C.', 'Valores de capacidade usados: cobre com isolação PVC, eletroduto embutido em alvenaria, 2 condutores carregados, 30 °C.'])}</div>
-    <div class="exp-aplic"><b>🧮 Como foi aplicado na sua casa</b>${ls([`Fio mínimo: 1,5 mm² na luz, 2,5 mm² nas tomadas. Com ${agrup()} circuito(s) no mesmo eletroduto o fio aguenta menos (fator ${fmt(fca(), 2)}): 1,5 mm² → ${fmt(17.5 * fca(), 1)} A e 2,5 mm² → ${fmt(24 * fca(), 1)} A.`, `Por isso cada circuito de luz vai até o disjuntor de ${maiorDisj(1.5)} A (${limL} VA em ${V} V) e cada circuito de TUG até ${maiorDisj(2.5)} A (${limT} VA). Passou disso, o app abre outro circuito.`, `Iluminação: ${nL} circuito(s) · TUG: ${nT} · TUG de cozinha/serviço: ${nM} (exclusivos) · TUE: ${nE}, um por aparelho${lista.some(c => c.exclusivo) ? ' (os de mais de 10 A são obrigatórios pela norma)' : ''}.`, ...lista.filter(c => c.tipo === 'TUE' || c.sec > secMin(c.tipo)).map(c => `Circuito ${c.n}: Ib = ${c.va} ÷ ${V} = ${fmt(c.i, 1)} A → disjuntor mínimo ${c.dmin} A → precisa de fio que aguente ≥ ${c.dmin} A: ${fmt(c.sec, 1).replace(',0', '')} mm² aguenta ${c.cap} × ${fmt(fca(), 2)} = ${fmt(c.iz, 1)} A ✔ → com esse fio, o disjuntor pode ir de ${c.dmin} A até ${c.dmax} A.`), 'Ainda falta a queda de tensão, que depende do comprimento do fio: entra quando as tomadas e o quadro forem posicionados na planta.'])}</div>
-    <p class="aviso">Regras da NBR 5410 (itens 9.5.3, 6.2.6 e 5.3) explicadas com nossas palavras. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
+    <div class="exp-norma"><b>📘 O que a norma diz</b>${ls(['Iluminação e tomadas devem ficar em <b>circuitos separados</b>.', 'As tomadas de <b>cozinha, copa, área de serviço e lavanderia</b> devem ter circuitos <b>só para elas</b>, sem misturar com outros cômodos.', 'Todo aparelho com corrente acima de <b>10 A</b> precisa de <b>circuito independente</b>.', 'Os circuitos devem ser divididos para facilitar manutenção e evitar que um defeito desligue a casa toda.', 'A norma não fixa potência máxima por circuito. O que vale é a <b>coordenação entre fio e disjuntor</b>: <b>Ib ≤ In ≤ Iz</b>.', '<b>Ib</b> = corrente que o circuito puxa (potência ÷ tensão). <b>In</b> = corrente nominal do disjuntor. <b>Iz</b> = corrente que o fio aguenta sem esquentar demais, já com os fatores de correção.', 'Em palavras: o disjuntor tem que <b>aguentar a carga sem desarmar</b> (In ≥ Ib) e <b>desarmar antes de o fio superaquecer</b> (In ≤ Iz). Por isso o disjuntor mínimo é o primeiro valor comercial acima de Ib, e o máximo é o maior valor que não passa de Iz.', 'Também se exige que a corrente que garante o desarme por sobrecarga não passe de 1,45 × Iz; os disjuntores residenciais (NBR NM 60898) já atendem isso quando In ≤ Iz.', 'Seção mínima do fio de cobre: <b>1,5 mm²</b> em iluminação e <b>2,5 mm²</b> em tomadas e força.', 'A capacidade do fio diminui quando vários circuitos passam no mesmo eletroduto (<b>fator de agrupamento</b>) e em ambientes mais quentes que 30 °C.', 'Valores de capacidade usados: cobre com isolação PVC, eletroduto embutido em alvenaria, 2 condutores carregados, 30 °C.', '<b>Queda de tensão</b>: nos circuitos terminais (do quadro até a tomada ou luz) ela não pode passar de <b>4%</b>. Fio comprido ou corrente alta = mais queda; se passar, aumenta-se a seção do fio.'])}</div>
+    <div class="exp-aplic"><b>🧮 Como foi aplicado na sua casa</b>${ls([`Fio mínimo: 1,5 mm² na luz, 2,5 mm² nas tomadas. Com ${agrup()} circuito(s) no mesmo eletroduto o fio aguenta menos (fator ${fmt(fca(), 2)}): 1,5 mm² → ${fmt(17.5 * fca(), 1)} A e 2,5 mm² → ${fmt(24 * fca(), 1)} A.`, `Por isso cada circuito de luz vai até o disjuntor de ${maiorDisj(1.5)} A (${limL} VA em ${V} V) e cada circuito de TUG até ${maiorDisj(2.5)} A (${limT} VA). Passou disso, o app abre outro circuito.`, `Iluminação: ${nL} circuito(s) · TUG: ${nT} · TUG de cozinha/serviço: ${nM} (exclusivos) · TUE: ${nE}, um por aparelho${lista.some(c => c.exclusivo) ? ' (os de mais de 10 A são obrigatórios pela norma)' : ''}.`, ...lista.filter(c => c.tipo === 'TUE' || c.sec > secMin(c.tipo)).map(c => `Circuito ${c.n}: Ib = ${c.va} ÷ ${V} = ${fmt(c.i, 1)} A → disjuntor mínimo ${c.dmin} A → precisa de fio que aguente ≥ ${c.dmin} A: ${fmt(c.sec, 1).replace(',0', '')} mm² aguenta ${c.cap} × ${fmt(fca(), 2)} = ${fmt(c.iz, 1)} A ✔ → com esse fio, o disjuntor pode ir de ${c.dmin} A até ${c.dmax} A.`), ...(Q ? [`Distância: do quadro até o ponto mais longe de cada circuito, andando em "L" pelas paredes (como o eletroduto costuma ir) + ${SOBE_DESCE} m de subidas e descidas. Tomadas colocadas na planta usam a posição real; as que faltam usam o meio do cômodo.`, `Queda (%) = 2 × ρ × L × Ib ÷ (S × V) × 100, com ρ do cobre = 1/56 Ω·mm²/m. Considera toda a carga no ponto mais longe (a favor da segurança).`, ...lista.filter(c => c.porQueda).map(c => `Circuito ${c.n}: com ${fmt(c.secAmp, 1).replace(',0', '')} mm² a queda seria ${fmt(c.dvAntes, 2)}% (passa de 4%) → o fio subiu pra ${fmt(c.sec, 1).replace(',0', '')} mm² e ficou ${fmt(c.dv, 2)}% ✔.`), ...(lista.some(c => c.porQueda) ? [] : ['Todos os circuitos ficaram abaixo de 4% de queda com o fio escolhido ✔.'])] : ['Queda de tensão: coloque o quadro na planta (botão 🔌 Pontos → ▣ Quadro) pra o app medir as distâncias.'])])}</div>
+    <p class="aviso">Regras da NBR 5410 (itens 9.5.3, 6.2.6, 6.2.7 e 5.3) explicadas com nossas palavras. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
     <div class="botoes"><button class="btn" id="mVolta">← Cômodos</button><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal; $('#mVolta').onclick = () => $('#btnComodos').onclick();
   $('#mAgr').onchange = e => { proj.agrup = +e.target.value; gravar(); mostrarCircuitos(); };
@@ -897,7 +904,7 @@ function toque(s) {
 // ---------- pontos na planta: tomadas e interruptores (simbologia usual NBR 5444) ----------
 let selPonto = null, ferramenta = 'bx', dupla = false;
 const ALT = { bx: ['Baixa', '0,30 m'], md: ['Média', '1,30 m'], al: ['Alta', '2,00 m'] };
-const FERR = [['bx', '▽ Baixa'], ['md', '◭ Média'], ['al', '▲ Alta'], ['int', '● Interruptor'], ['par', '◐ Paralelo']];
+const FERR = [['bx', '▽ Baixa'], ['md', '◭ Média'], ['al', '▲ Alta'], ['int', '● Interruptor'], ['par', '◐ Paralelo'], ['qdc', '▣ Quadro']];
 function paredeMaisPerto(c, w) {
   let melhor = null, md = Infinity;
   c.pts.forEach((a, i) => {
@@ -918,6 +925,10 @@ function svgPonto(c, q, destaque) {
   const g = geoPonto(c, q); if (!g) return '';
   const P = tela(g.m), off = 16, C = [P[0] + g.nrm[0] * off, P[1] + g.nrm[1] * off], cor = destaque ? '#ffc531' : '#e8eef7';
   let h = `<line x1="${P[0]}" y1="${P[1]}" x2="${C[0]}" y2="${C[1]}" stroke="${cor}" stroke-width="1.6"/>`;
+  if (q.k === 'qdc') {
+    const a = Math.atan2(g.d[1], g.d[0]) * 180 / Math.PI;
+    return `<g transform="translate(${P[0].toFixed(1)},${P[1].toFixed(1)}) rotate(${a.toFixed(1)})"><rect x="-14" y="-6" width="28" height="12" fill="#0d1626" stroke="${cor}" stroke-width="1.8"/><polygon points="-14,-6 14,-6 -14,6" fill="${cor}"/></g><text x="${C[0] + g.nrm[0] * 8}" y="${C[1] + g.nrm[1] * 8 + 4}" text-anchor="middle" font-size="11" font-weight="700" fill="#ffc531">QDC</text>`;
+  }
   if (q.k === 'tom' && q.dupla) {
     const sh = 8, q1 = Object.assign({}, q, { dupla: false });
     const um = (dx) => { const C2 = [C[0] + g.d[0] * dx, C[1] + g.d[1] * dx], r = 8, ang = Math.atan2(g.nrm[1], g.nrm[0]);
@@ -950,7 +961,8 @@ function colocarPonto(w) {
   if (!c) { selPonto = null; aviso('Toque dentro de um cômodo, perto da parede.'); render(); return; }
   const m = paredeMaisPerto(c, w); if (!m) return;
   checkpoint(); c.pontos = c.pontos || [];
-  const q = ferramenta === 'int' || ferramenta === 'par' ? { id: uid(), k: ferramenta, parede: m.i, pos: m.pos } : { id: uid(), k: 'tom', alt: ferramenta, dupla, parede: m.i, pos: m.pos };
+  if (ferramenta === 'qdc') proj.comodos.forEach(o => { if (o.pontos) o.pontos = o.pontos.filter(x => x.k !== 'qdc'); });
+  const q = ferramenta === 'qdc' ? { id: uid(), k: 'qdc', parede: m.i, pos: m.pos } : ferramenta === 'int' || ferramenta === 'par' ? { id: uid(), k: ferramenta, parede: m.i, pos: m.pos } : { id: uid(), k: 'tom', alt: ferramenta, dupla, parede: m.i, pos: m.pos };
   c.pontos.push(q); selPonto = q.id; sel = { comodo: c.id, parede: null }; gravar(); render();
 }
 function achaPonto(id) { for (const c of proj.comodos) { const q = (c.pontos || []).find(x => x.id === id); if (q) return { c, q }; } return null; }
@@ -958,10 +970,12 @@ function painelPontos(p) {
   p.classList.add('aberto');
   const ach = selPonto && achaPonto(selPonto), c = ach ? ach.c : sel.comodo && comodo(sel.comodo);
   let h = `<div class="linha">${FERR.map(([k, n]) => `<button class="btn ${ferramenta === k ? 'primario' : ''}" data-ferr="${k}">${n}</button>`).join('')}<button class="btn ${dupla ? 'primario' : ''}" id="btnDupla">${dupla ? '☑' : '☐'} Dupla</button><button class="btn" id="btnLegenda">Legenda</button></div>`;
-  if (c) { const t = tug(c), ni = (c.pontos || []).filter(q => q.k !== 'tom').length; h += `<div class="linha medidas">${esc(c.nome)}: tomadas <b>${t.col}</b> (mín. ${t.min} · recom. até ${t.max})${t.col < t.min ? ' ⚠️ faltam ' + (t.min - t.col) : t.col > t.max ? ' · acima do recomendado' : ' ✔'} · interruptores <b>${ni}</b> (luz "${letraLuz(c)}")</div>`; }
+  if (!proj.comodos.some(o => (o.pontos || []).some(x => x.k === 'qdc'))) h += `<div class="linha medidas">⚠️ Coloque o quadro (▣ Quadro) pra calcular a distância e a queda de tensão.</div>`;
+  if (c) { const t = tug(c), ni = (c.pontos || []).filter(q => q.k === 'int' || q.k === 'par').length; h += `<div class="linha medidas">${esc(c.nome)}: tomadas <b>${t.col}</b> (mín. ${t.min} · recom. até ${t.max})${t.col < t.min ? ' ⚠️ faltam ' + (t.min - t.col) : t.col > t.max ? ' · acima do recomendado' : ' ✔'} · interruptores <b>${ni}</b> (luz "${letraLuz(c)}")</div>`; }
   if (ach) {
     const q = ach.q;
-    h += `<div class="linha">${q.k === 'tom' ? `Tomada <select id="pAlt">${Object.entries(ALT).map(([k, [n, a]]) => `<option value="${k}" ${q.alt === k ? 'selected' : ''}>${n} (${a})</option>`).join('')}</select><select id="pDupla"><option value="0" ${q.dupla ? '' : 'selected'}>Simples</option><option value="1" ${q.dupla ? 'selected' : ''}>Dupla</option></select>` : `Interruptor <select id="pTipoInt"><option value="int" ${q.k === 'int' ? 'selected' : ''}>Simples</option><option value="par" ${q.k === 'par' ? 'selected' : ''}>Paralelo (three-way)</option></select>`}
+    if (q.k === 'qdc') h += `<div class="linha medidas">▣ Quadro de distribuição (QDC) · arraste pra mudar de lugar <button class="btn perigo" id="pExc">✕ Excluir</button></div>`;
+    else h += `<div class="linha">${q.k === 'tom' ? `Tomada <select id="pAlt">${Object.entries(ALT).map(([k, [n, a]]) => `<option value="${k}" ${q.alt === k ? 'selected' : ''}>${n} (${a})</option>`).join('')}</select><select id="pDupla"><option value="0" ${q.dupla ? '' : 'selected'}>Simples</option><option value="1" ${q.dupla ? 'selected' : ''}>Dupla</option></select>` : `Interruptor <select id="pTipoInt"><option value="int" ${q.k === 'int' ? 'selected' : ''}>Simples</option><option value="par" ${q.k === 'par' ? 'selected' : ''}>Paralelo (three-way)</option></select>`}
       <button class="btn perigo" id="pExc">✕ Excluir</button></div>`;
   }
   p.innerHTML = h;
@@ -983,6 +997,7 @@ function legendaPontos() {
   abrirModal(`<h2>Legenda dos pontos</h2>
     <table class="tab"><tr><td>${tri('bx')}</td><td>Tomada baixa · 0,30 m do piso</td></tr><tr><td>${tri('md')}</td><td>Tomada média · 1,30 m do piso</td></tr><tr><td>${tri('al')}</td><td>Tomada alta · 2,00 m do piso</td></tr>
     <tr><td><svg width="40" height="34"><polygon points="11,6 2,28 20,28" fill="#0d1626" stroke="${cor}" stroke-width="2"/><polygon points="29,6 20,28 38,28" fill="#0d1626" stroke="${cor}" stroke-width="2"/></svg></td><td>Tomada dupla (2 tomadas na mesma caixa) · vale para as 3 alturas</td></tr>
+    <tr><td><svg width="40" height="34"><rect x="6" y="11" width="28" height="12" fill="#0d1626" stroke="${cor}" stroke-width="2"/><polygon points="6,11 34,11 6,23" fill="${cor}"/></svg></td><td>Quadro de distribuição (QDC) embutido</td></tr>
     <tr><td>${circ(false)}</td><td>Interruptor simples · a letra é o ponto de luz que ele acende</td></tr><tr><td>${circ(true)}</td><td>Interruptor paralelo (three-way) · comanda a mesma luz de 2 lugares</td></tr></table>
     <p class="aviso" style="margin-top:10px">Símbolos e alturas do padrão tradicional brasileiro (NBR 5444). Essa norma foi cancelada em 2014 sem substituta, mas continua sendo a mais usada em projetos residenciais; por isso todo projeto deve trazer a sua legenda. Tomada dupla conta como <b>1 ponto de tomada</b> (a NBR 5410 conta pontos, não tomadas) e entra com a carga de 1 ponto. As tomadas colocadas contam no cálculo: se você puser mais que o mínimo, a carga de TUG e os circuitos usam a quantidade colocada.</p>
     <div class="botoes"><button class="btn" id="mCanc">Fechar</button></div>`);
@@ -991,7 +1006,7 @@ function legendaPontos() {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=22').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=23').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
