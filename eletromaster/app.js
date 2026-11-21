@@ -1,4 +1,4 @@
-/* EletroMaster — Módulos 1–5: editor de planta + projetos + área/perímetro
+/* EletroMaster — Módulos 1–6: editor de planta + projetos + área/perímetro
    Coordenadas internas em metros. Tudo salvo no localStorage do aparelho. */
 'use strict';
 
@@ -517,6 +517,41 @@ function editarTUE(c, u) {
     checkpoint(); u.w = w; u.fp = fp; u.nome = $('#mNomeEq').value.trim() || u.nome; fecharModal(); gravar(); render();
   };
 }
+// ---------- módulo 6: cargas e demanda ----------
+// Fatores de demanda da tabela usual de livros-texto e normas de distribuidoras (iluminação + TUG por faixa de potência;
+// TUE pelo número de aparelhos). Conferir sempre com a norma de fornecimento da Coelba vigente.
+const FD_LUZ_TUG = [[1000, 0.86], [2000, 0.75], [3000, 0.66], [4000, 0.59], [5000, 0.52], [6000, 0.45], [7000, 0.40], [8000, 0.35], [9000, 0.31], [10000, 0.27], [Infinity, 0.24]];
+const FD_TUE = [1, 1, 1, 0.84, 0.76, 0.70, 0.65, 0.60, 0.57, 0.54, 0.52, 0.49, 0.48, 0.46, 0.45, 0.44, 0.43, 0.42, 0.41, 0.40, 0.40, 0.39, 0.39, 0.39, 0.38, 0.38];
+const fdLuzTug = w => FD_LUZ_TUG.find(f => w <= f[0])[1];
+const fdTue = n => n <= 0 ? 0 : FD_TUE[Math.min(n, FD_TUE.length - 1)];
+function demanda() {
+  const cs = proj.comodos;
+  const luzVA = cs.reduce((s, c) => s + iluminacao(c.pts).va, 0), tugVAt = cs.reduce((s, c) => s + tug(c).va, 0);
+  const luzW = luzVA * 1.0, tugW = tugVAt * 0.8, base = luzW + tugW, f1 = base > 0 ? fdLuzTug(base) : 0, d1 = base * f1;
+  const us = cs.flatMap(c => (c.tue || []).map(u => ({ ...u, comodo: c.nome })));
+  const tueW = us.reduce((s, u) => s + u.w, 0), f2 = fdTue(us.length), d2 = tueW * f2;
+  const dW = d1 + d2, dVA = dW / 0.92, i = dVA / tensao();
+  return { luzVA, tugVAt, luzW, tugW, base, f1, d1, us, tueW, f2, d2, dW, dVA, i, instW: base + tueW };
+}
+function mostrarDemanda() {
+  const d = demanda(), kw = v => fmt(v / 1000, 2) + ' kW';
+  const lista = arr => `<ul class="passos">${arr.map(x => `<li>${x}</li>`).join('')}</ul>`;
+  const bloco = (t, n, a) => `<h3 class="exp-t">${t}</h3><div class="exp-norma"><b>📘 O que a regra diz</b>${lista(n)}</div><div class="exp-aplic"><b>🧮 Como foi aplicado na sua casa</b>${lista(a)}</div>`;
+  const faixa = FD_LUZ_TUG.findIndex(f => d.base <= f[0]);
+  abrirModal(`<h2>📊 Demanda de ${esc(proj.nome)}</h2>
+    <div class="exp-aplic" style="margin-bottom:8px;font-size:15px">Potência instalada: <b>${kw(d.instW)}</b><br>Demanda (o que realmente liga junto): <b>${kw(d.dW)}</b> ≈ <b>${fmt(d.dVA / 1000, 2)} kVA</b><br>Corrente estimada em ${tensao()} V (monofásico): <b>${fmt(d.i, 1)} A</b></div>
+    ${bloco('1️⃣ De VA para W', ['As cargas de luz e tomadas são calculadas em <b>VA</b> (potência aparente). Para somar a potência real usa-se o <b>fator de potência</b>.', 'Valores usuais em projeto residencial: iluminação <b>1,0</b>; tomadas de uso geral (TUG) <b>0,8</b>. Nas TUE usa-se a potência em W da etiqueta.'],
+      [`Iluminação: ${d.luzVA} VA × 1,0 = <b>${d.luzW} W</b>.`, `TUG: ${d.tugVAt} VA × 0,8 = <b>${fmt(d.tugW, 0)} W</b>.`, `Soma luz + TUG: <b>${fmt(d.base, 0)} W</b>.`])}
+    ${bloco('2️⃣ Demanda de iluminação + TUG', ['Nem todas as lâmpadas e tomadas são usadas ao mesmo tempo, então a soma é multiplicada por um <b>fator de demanda</b>, que diminui conforme a potência cresce.', 'Tabela usual: até 1 kW = 0,86 · 1–2 kW = 0,75 · 2–3 = 0,66 · 3–4 = 0,59 · 4–5 = 0,52 · 5–6 = 0,45 · 6–7 = 0,40 · 7–8 = 0,35 · 8–9 = 0,31 · 9–10 = 0,27 · acima de 10 kW = 0,24.'],
+      d.base ? [`${kw(d.base)} está na faixa ${faixa === 0 ? 'até 1 kW' : faixa === FD_LUZ_TUG.length - 1 ? 'acima de 10 kW' : `${faixa}–${faixa + 1} kW`} → fator <b>${fmt(d.f1, 2)}</b>.`, `${fmt(d.base, 0)} × ${fmt(d.f1, 2)} = <b>${fmt(d.d1, 0)} W</b>.`] : ['Nenhum cômodo ainda.'])}
+    ${bloco('3️⃣ Demanda das TUE', ['As TUE (chuveiro, ar, forno...) também não ligam todas juntas. O fator depende do <b>número de aparelhos</b>.', 'Tabela usual: 1 ou 2 aparelhos = 1,00 · 3 = 0,84 · 4 = 0,76 · 5 = 0,70 · 6 = 0,65 · 7 = 0,60 · 8 = 0,57 · 9 = 0,54 · 10 = 0,52 · e vai caindo até cerca de 0,38.'],
+      d.us.length ? [`Aparelhos: ${d.us.map(u => `${esc(u.nome)} (${esc(u.comodo)}) ${u.w} W`).join(' · ')}.`, `Soma: <b>${d.tueW} W</b> com ${d.us.length} aparelho(s) → fator <b>${fmt(d.f2, 2)}</b>.`, `${d.tueW} × ${fmt(d.f2, 2)} = <b>${fmt(d.d2, 0)} W</b>.`] : ['Nenhuma TUE cadastrada. Adicione nos cômodos com "+ TUE".'])}
+    ${bloco('4️⃣ Demanda total', ['Demanda total = demanda de luz + TUG + demanda das TUE.', 'Para kVA divide-se por um fator de potência médio (aqui <b>0,92</b>). A corrente é kVA ÷ tensão. Esse valor é a base para escolher o padrão de entrada da Coelba (módulo futuro).'],
+      [`${fmt(d.d1, 0)} + ${fmt(d.d2, 0)} = <b>${fmt(d.dW, 0)} W</b>.`, `${fmt(d.dW, 0)} ÷ 0,92 = <b>${fmt(d.dVA, 0)} VA</b> → ÷ ${tensao()} V = <b>${fmt(d.i, 1)} A</b>.`])}
+    <p class="aviso">Fatores de demanda da tabela usada em livros-texto e normas de distribuidoras; o valor oficial para o padrão de entrada deve ser conferido na norma de fornecimento da Neoenergia Coelba vigente. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
+    <div class="botoes"><button class="btn" id="mVolta">← Cômodos</button><button class="btn" id="mCanc">Fechar</button></div>`);
+  $('#mCanc').onclick = fecharModal; $('#mVolta').onclick = () => $('#btnComodos').onclick();
+}
 // ---------- explicação: o que a norma diz + como foi aplicado ----------
 function regraTUG(tipo) {
   if (tipo === 'banheiro' || tipo === 'lavabo') return ['Em banheiros, deve haver <b>pelo menos 1 tomada perto do lavatório</b> (pia).', 'A tomada precisa respeitar a distância do box/banheira definida pela norma para áreas molhadas (volumes de risco).'];
@@ -631,8 +666,8 @@ $('#btnComodos').onclick = () => {
     <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th><th class="n">Luz (VA)</th><th class="n">TUG</th><th class="n">TUG (VA)</th><th class="n">TUE (VA)</th></tr>${linhas}
     <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td><td class="n">${tv}</td><td class="n">${tn}</td><td class="n">${tt}</td><td class="n">${te}</td></tr></table>
     <p class="aviso" style="margin-top:10px">Luz: mínimo pela NBR 5410 (1 ponto no teto por cômodo; 100 VA até 6 m², +60 VA a cada 4 m² inteiros). TUG: mínimo da NBR 5410 – máximo recomendado pelo app; VA calculado com o mínimo (600 VA nas 3 primeiras de cozinha, copa, área de serviço e banheiro; 100 VA nas demais). TUE: potência do aparelho; acima de 10 A na tensão do projeto (${tensao()} V), circuito exclusivo. Ferramenta de apoio: confira com profissional habilitado.</p>
-    <div class="botoes"><button class="btn" id="mImg">📷 Imagem da planta</button><button class="btn" id="mCanc">Fechar</button></div>`);
-  $('#mCanc').onclick = fecharModal; $('#mImg').onclick = () => { fecharModal(); exportarImagem(); };
+    <div class="botoes"><button class="btn primario" id="mDem">📊 Demanda da casa</button><button class="btn" id="mImg">📷 Imagem da planta</button><button class="btn" id="mCanc">Fechar</button></div>`);
+  $('#mCanc').onclick = fecharModal; $('#mDem').onclick = mostrarDemanda; $('#mImg').onclick = () => { fecharModal(); exportarImagem(); };
   $('#modalConteudo').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { fecharModal(); definirModo('selecionar'); sel = { comodo: tr.dataset.id, parede: null }; render(); });
 };
 
@@ -798,7 +833,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=15').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=16').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
