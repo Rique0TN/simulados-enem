@@ -439,7 +439,7 @@ function renderPainel() {
     <div class="linha medidas">Área <b>${fmt(area(c.pts))} m²</b> · Perímetro <b>${fmt(perimetro(c.pts))} m</b> · ${c.pts.length} paredes</div>
     <div class="linha medidas">💡 Iluminação (NBR 5410): mín. <b>1 ponto no teto</b> com interruptor · carga mín. <b>${iluminacao(c.pts).va} VA</b></div>
     <div class="linha medidas">🔌 Tomadas TUG: mín. <b>${tug(c).min}</b> (NBR 5410: ${tug(c).obs}) · recomendado até <b>${tug(c).max}</b> · carga mín. <b>${tug(c).va} VA</b></div>
-    <div class="linha medidas">⚡ TUE: ${(c.tue || []).length ? (c.tue || []).map(u => `<span class="chip">${esc(u.nome)} ${u.w} W · ${fmt(tueA(u), 1)} A${tueA(u) > 10 ? ' · circ. exclusivo' : ''} <button class="x" data-tue="${u.id}">✕</button></span>`).join(' ') + ` · total <b>${tueTotal(c)} VA</b>` : 'nenhuma'} <button class="btn" id="btnTUE">+ TUE</button><button class="btn" id="btnTensao" title="Tensão da instalação">🔁 ${tensao()} V</button></div>
+    <div class="linha medidas">⚡ TUE: ${(c.tue || []).length ? (c.tue || []).map(u => `<span class="chip" data-edtue="${u.id}">✏️ ${esc(u.nome)} ${u.w} W · ${fmt(tueA(u), 1)} A${tueA(u) > 10 ? ' · circ. exclusivo' : ''} <button class="x" data-tue="${u.id}">✕</button></span>`).join(' ') + ` · total <b>${tueTotal(c)} VA</b>` : 'nenhuma'} <button class="btn" id="btnTUE">+ TUE</button><button class="btn" id="btnTensao" title="Tensão da instalação">🔁 ${tensao()} V</button></div>
     <div class="linha"><button class="btn" id="btnPorque">❓ Por que esses valores?</button><button class="btn" id="btnDup">Duplicar</button><button class="btn perigo" id="btnExc">Excluir</button></div>`;
   p.querySelector('#inNome').onchange = e => { const v = e.target.value.trim(); if (!v) return; checkpoint(); c.nome = v; gravar(); render(); };
   p.querySelector('#selTipo').onchange = e => {
@@ -451,6 +451,7 @@ function renderPainel() {
   p.querySelector('#btnPorque').onclick = () => explicar(c);
   p.querySelector('#btnTUE').onclick = () => adicionarTUE(c);
   p.querySelector('#btnTensao').onclick = () => { proj.tensao = tensao() === 220 ? 127 : 220; gravar(); render(); aviso(`Tensão do projeto: ${proj.tensao} V`); };
+  p.querySelectorAll('[data-edtue]').forEach(ch => ch.onclick = e => { if (e.target.closest('[data-tue]')) return; const u = c.tue.find(x => x.id === ch.dataset.edtue); if (u) editarTUE(c, u); });
   p.querySelectorAll('[data-tue]').forEach(b => b.onclick = () => { checkpoint(); c.tue = c.tue.filter(u => u.id !== b.dataset.tue); gravar(); render(); });
   p.querySelector('#btnDup').onclick = () => {
     checkpoint(); const n = clone(c); n.id = uid(); n.nome = nomeAuto(n.tipo);
@@ -495,6 +496,25 @@ function adicionarTUE(c) {
     const w = parseFloat(String($('#mW').value).replace(',', '.')); if (!(w > 0)) { $('#mW').style.borderColor = '#ff5d5d'; return; }
     const e = equip($('#mEq').value); checkpoint(); c.tue = c.tue || [];
     c.tue.push({ id: uid(), eq: e[0], nome: $('#mNomeEq').value.trim() || e[1], w, fp: e[3] }); fecharModal(); gravar(); render();
+  };
+}
+function editarTUE(c, u) {
+  abrirModal(`<h2>Editar TUE · ${esc(c.nome)}</h2>
+    <div class="campo"><label>Nome</label><input id="mNomeEq" type="text" maxlength="40" value="${esc(u.nome)}"></div>
+    <div class="campo"><label>Potência (W) — confira na etiqueta do aparelho</label><input id="mW" type="number" inputmode="decimal" min="1" value="${u.w}"></div>
+    <div class="campo"><label>Fator de potência (1 para resistivos: chuveiro, forno, torneira)</label><input id="mFp" type="number" inputmode="decimal" min="0.5" max="1" step="0.05" value="${u.fp}"></div>
+    <p class="aviso" id="mPrev" style="margin:4px 0 10px"></p>
+    <div class="botoes"><button class="btn perigo" id="mDel">Excluir</button><button class="btn" id="mCanc">Cancelar</button><button class="btn primario" id="mOk">Salvar</button></div>`);
+  const num = id => parseFloat(String($(id).value).replace(',', '.'));
+  const prev = () => { const w = num('#mW'), fp = num('#mFp'); if (w > 0 && fp > 0) { const va = Math.round(w / fp), i = va / tensao(); $('#mPrev').innerHTML = `${va} VA → ${fmt(i, 1)} A em ${tensao()} V${i > 10 ? ' · <b>circuito exclusivo</b>' : ''}`; } };
+  prev(); $('#mW').oninput = prev; $('#mFp').oninput = prev;
+  $('#mCanc').onclick = fecharModal;
+  $('#mDel').onclick = () => { checkpoint(); c.tue = c.tue.filter(x => x.id !== u.id); fecharModal(); gravar(); render(); };
+  $('#mOk').onclick = () => {
+    const w = num('#mW'), fp = num('#mFp');
+    if (!(w > 0)) { $('#mW').style.borderColor = '#ff5d5d'; return; }
+    if (!(fp >= 0.5 && fp <= 1)) { $('#mFp').style.borderColor = '#ff5d5d'; return; }
+    checkpoint(); u.w = w; u.fp = fp; u.nome = $('#mNomeEq').value.trim() || u.nome; fecharModal(); gravar(); render();
   };
 }
 // ---------- explicação: o que a norma diz + como foi aplicado ----------
@@ -778,7 +798,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=14').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=15').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {

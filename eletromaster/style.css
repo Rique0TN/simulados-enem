@@ -67,3 +67,4 @@ tr.clicavel{cursor:pointer}
 .passos{margin:0 0 6px;padding-left:20px;line-height:1.5;font-size:14px}.passos li{margin-bottom:4px}
 .exp-t{margin:14px 0 6px;font-size:16px}.exp-norma{background:#13233b;border-left:3px solid #3b9cff;border-radius:8px;padding:8px 10px;margin-bottom:6px}.exp-aplic{background:#1d2a1a;border-left:3px solid #7ee0a0;border-radius:8px;padding:8px 10px}.exp-norma .passos,.exp-aplic .passos{margin-top:4px}
 .chip{display:inline-flex;align-items:center;gap:4px;background:#13233b;border:1px solid #2a3c58;border-radius:12px;padding:3px 8px;font-size:13px}.chip .x{background:none;border:0;color:#ff7b7b;font-size:13px;padding:0 2px}
+.chip[data-edtue]{cursor:pointer}
