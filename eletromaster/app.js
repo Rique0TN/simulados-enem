@@ -542,13 +542,13 @@ function mostrarDemanda() {
     <div class="exp-aplic" style="margin-bottom:8px;font-size:15px">Potência instalada: <b>${kw(d.instW)}</b><br>Demanda (o que realmente liga junto): <b>${kw(d.dW)}</b> ≈ <b>${fmt(d.dVA / 1000, 2)} kVA</b><br>Corrente estimada em ${tensao()} V (monofásico): <b>${fmt(d.i, 1)} A</b></div>
     ${bloco('1️⃣ De VA para W', ['As cargas de luz e tomadas são calculadas em <b>VA</b> (potência aparente). Para somar a potência real usa-se o <b>fator de potência</b>.', 'Valores usuais em projeto residencial: iluminação <b>1,0</b>; tomadas de uso geral (TUG) <b>0,8</b>. Nas TUE usa-se a potência em W da etiqueta.'],
       [`Iluminação: ${d.luzVA} VA × 1,0 = <b>${d.luzW} W</b>.`, `TUG: ${d.tugVAt} VA × 0,8 = <b>${fmt(d.tugW, 0)} W</b>.`, `Soma luz + TUG: <b>${fmt(d.base, 0)} W</b>.`])}
-    ${bloco('2️⃣ Demanda de iluminação + TUG', ['Nem todas as lâmpadas e tomadas são usadas ao mesmo tempo, então a soma é multiplicada por um <b>fator de demanda</b>, que diminui conforme a potência cresce.', 'Tabela usual: até 1 kW = 0,86 · 1–2 kW = 0,75 · 2–3 = 0,66 · 3–4 = 0,59 · 4–5 = 0,52 · 5–6 = 0,45 · 6–7 = 0,40 · 7–8 = 0,35 · 8–9 = 0,31 · 9–10 = 0,27 · acima de 10 kW = 0,24.'],
+    ${bloco('2️⃣ Demanda de iluminação + TUG', ['Nem todas as lâmpadas e tomadas são usadas ao mesmo tempo, então a soma é multiplicada por um <b>fator de demanda</b>, que diminui conforme a potência cresce.', 'Tabela de fatores de demanda residenciais da Neoenergia (DIS-NOR-030, vale para a Coelba): até 1 kW = 0,86 · 1–2 kW = 0,75 · 2–3 = 0,66 · 3–4 = 0,59 · 4–5 = 0,52 · 5–6 = 0,45 · 6–7 = 0,40 · 7–8 = 0,35 · 8–9 = 0,31 · 9–10 = 0,27 · acima de 10 kW = 0,24.'],
       d.base ? [`${kw(d.base)} está na faixa ${faixa === 0 ? 'até 1 kW' : faixa === FD_LUZ_TUG.length - 1 ? 'acima de 10 kW' : `${faixa}–${faixa + 1} kW`} → fator <b>${fmt(d.f1, 2)}</b>.`, `${fmt(d.base, 0)} × ${fmt(d.f1, 2)} = <b>${fmt(d.d1, 0)} W</b>.`] : ['Nenhum cômodo ainda.'])}
     ${bloco('3️⃣ Demanda das TUE', ['As TUE (chuveiro, ar, forno...) também não ligam todas juntas. O fator depende do <b>número de aparelhos</b>.', 'Tabela usual: 1 ou 2 aparelhos = 1,00 · 3 = 0,84 · 4 = 0,76 · 5 = 0,70 · 6 = 0,65 · 7 = 0,60 · 8 = 0,57 · 9 = 0,54 · 10 = 0,52 · e vai caindo até cerca de 0,38.'],
       d.us.length ? [`Aparelhos: ${d.us.map(u => `${esc(u.nome)} (${esc(u.comodo)}) ${u.w} W`).join(' · ')}.`, `Soma: <b>${d.tueW} W</b> com ${d.us.length} aparelho(s) → fator <b>${fmt(d.f2, 2)}</b>.`, `${d.tueW} × ${fmt(d.f2, 2)} = <b>${fmt(d.d2, 0)} W</b>.`] : ['Nenhuma TUE cadastrada. Adicione nos cômodos com "+ TUE".'])}
     ${bloco('4️⃣ Demanda total', ['Demanda total = demanda de luz + TUG + demanda das TUE.', 'Para kVA divide-se por um fator de potência médio (aqui <b>0,92</b>). A corrente é kVA ÷ tensão. Esse valor é a base para escolher o padrão de entrada da Coelba (módulo futuro).'],
       [`${fmt(d.d1, 0)} + ${fmt(d.d2, 0)} = <b>${fmt(d.dW, 0)} W</b>.`, `${fmt(d.dW, 0)} ÷ 0,92 = <b>${fmt(d.dVA, 0)} VA</b> → ÷ ${tensao()} V = <b>${fmt(d.i, 1)} A</b>.`])}
-    <p class="aviso">Fatores de demanda da tabela usada em livros-texto e normas de distribuidoras; o valor oficial para o padrão de entrada deve ser conferido na norma de fornecimento da Neoenergia Coelba vigente. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
+    <p class="aviso">O fator de luz + TUG é o mesmo da tabela de fatores de demanda residenciais da norma DIS-NOR-030 da Neoenergia (que vale para a Coelba). O fator das TUE é o da tabela usual de livros-texto: a Coelba agrupa os aparelhos por tipo, e isso entra no módulo do padrão de entrada. O valor oficial para o padrão de entrada deve ser conferido na norma de fornecimento da Neoenergia Coelba vigente. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
     <div class="botoes"><button class="btn" id="mVolta">← Cômodos</button><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal; $('#mVolta').onclick = () => $('#btnComodos').onclick();
 }
@@ -833,7 +833,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=16').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=17').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
