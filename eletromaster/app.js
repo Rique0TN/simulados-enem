@@ -895,7 +895,7 @@ function toque(s) {
 }
 
 // ---------- pontos na planta: tomadas e interruptores (simbologia usual NBR 5444) ----------
-let selPonto = null, ferramenta = 'bx';
+let selPonto = null, ferramenta = 'bx', dupla = false;
 const ALT = { bx: ['Baixa', '0,30 m'], md: ['Média', '1,30 m'], al: ['Alta', '2,00 m'] };
 const FERR = [['bx', '▽ Baixa'], ['md', '◭ Média'], ['al', '▲ Alta'], ['int', '● Interruptor'], ['par', '◐ Paralelo']];
 function paredeMaisPerto(c, w) {
@@ -918,6 +918,15 @@ function svgPonto(c, q, destaque) {
   const g = geoPonto(c, q); if (!g) return '';
   const P = tela(g.m), off = 16, C = [P[0] + g.nrm[0] * off, P[1] + g.nrm[1] * off], cor = destaque ? '#ffc531' : '#e8eef7';
   let h = `<line x1="${P[0]}" y1="${P[1]}" x2="${C[0]}" y2="${C[1]}" stroke="${cor}" stroke-width="1.6"/>`;
+  if (q.k === 'tom' && q.dupla) {
+    const sh = 8, q1 = Object.assign({}, q, { dupla: false });
+    const um = (dx) => { const C2 = [C[0] + g.d[0] * dx, C[1] + g.d[1] * dx], r = 8, ang = Math.atan2(g.nrm[1], g.nrm[0]);
+      const v = [0, 2.094, 4.189].map(t => [C2[0] + r * Math.cos(ang + t), C2[1] + r * Math.sin(ang + t)]), pts = v.map(p => p.map(x => x.toFixed(1)).join(',')).join(' ');
+      let o = `<polygon points="${pts}" fill="${q.alt === 'al' ? cor : '#0d1626'}" stroke="${cor}" stroke-width="1.5"/>`;
+      if (q.alt === 'md') { const meio = [(v[1][0] + v[2][0]) / 2, (v[1][1] + v[2][1]) / 2]; o += `<polygon points="${[v[0], v[1], meio].map(p => p.map(x => x.toFixed(1)).join(',')).join(' ')}" fill="${cor}"/>`; }
+      return o; };
+    return h + um(-sh) + um(sh);
+  }
   if (q.k === 'tom') {
     const r = 9, ang = Math.atan2(g.nrm[1], g.nrm[0]);
     const v = [0, 2.094, 4.189].map(t => [C[0] + r * Math.cos(ang + t), C[1] + r * Math.sin(ang + t)]);
@@ -941,26 +950,28 @@ function colocarPonto(w) {
   if (!c) { selPonto = null; aviso('Toque dentro de um cômodo, perto da parede.'); render(); return; }
   const m = paredeMaisPerto(c, w); if (!m) return;
   checkpoint(); c.pontos = c.pontos || [];
-  const q = ferramenta === 'int' || ferramenta === 'par' ? { id: uid(), k: ferramenta, parede: m.i, pos: m.pos } : { id: uid(), k: 'tom', alt: ferramenta, parede: m.i, pos: m.pos };
+  const q = ferramenta === 'int' || ferramenta === 'par' ? { id: uid(), k: ferramenta, parede: m.i, pos: m.pos } : { id: uid(), k: 'tom', alt: ferramenta, dupla, parede: m.i, pos: m.pos };
   c.pontos.push(q); selPonto = q.id; sel = { comodo: c.id, parede: null }; gravar(); render();
 }
 function achaPonto(id) { for (const c of proj.comodos) { const q = (c.pontos || []).find(x => x.id === id); if (q) return { c, q }; } return null; }
 function painelPontos(p) {
   p.classList.add('aberto');
   const ach = selPonto && achaPonto(selPonto), c = ach ? ach.c : sel.comodo && comodo(sel.comodo);
-  let h = `<div class="linha">${FERR.map(([k, n]) => `<button class="btn ${ferramenta === k ? 'primario' : ''}" data-ferr="${k}">${n}</button>`).join('')}<button class="btn" id="btnLegenda">Legenda</button></div>`;
+  let h = `<div class="linha">${FERR.map(([k, n]) => `<button class="btn ${ferramenta === k ? 'primario' : ''}" data-ferr="${k}">${n}</button>`).join('')}<button class="btn ${dupla ? 'primario' : ''}" id="btnDupla">${dupla ? '☑' : '☐'} Dupla</button><button class="btn" id="btnLegenda">Legenda</button></div>`;
   if (c) { const t = tug(c), ni = (c.pontos || []).filter(q => q.k !== 'tom').length; h += `<div class="linha medidas">${esc(c.nome)}: tomadas <b>${t.col}</b> (mín. ${t.min} · recom. até ${t.max})${t.col < t.min ? ' ⚠️ faltam ' + (t.min - t.col) : t.col > t.max ? ' · acima do recomendado' : ' ✔'} · interruptores <b>${ni}</b> (luz "${letraLuz(c)}")</div>`; }
   if (ach) {
     const q = ach.q;
-    h += `<div class="linha">${q.k === 'tom' ? `Tomada <select id="pAlt">${Object.entries(ALT).map(([k, [n, a]]) => `<option value="${k}" ${q.alt === k ? 'selected' : ''}>${n} (${a})</option>`).join('')}</select>` : `Interruptor <select id="pTipoInt"><option value="int" ${q.k === 'int' ? 'selected' : ''}>Simples</option><option value="par" ${q.k === 'par' ? 'selected' : ''}>Paralelo (three-way)</option></select>`}
+    h += `<div class="linha">${q.k === 'tom' ? `Tomada <select id="pAlt">${Object.entries(ALT).map(([k, [n, a]]) => `<option value="${k}" ${q.alt === k ? 'selected' : ''}>${n} (${a})</option>`).join('')}</select><select id="pDupla"><option value="0" ${q.dupla ? '' : 'selected'}>Simples</option><option value="1" ${q.dupla ? 'selected' : ''}>Dupla</option></select>` : `Interruptor <select id="pTipoInt"><option value="int" ${q.k === 'int' ? 'selected' : ''}>Simples</option><option value="par" ${q.k === 'par' ? 'selected' : ''}>Paralelo (three-way)</option></select>`}
       <button class="btn perigo" id="pExc">✕ Excluir</button></div>`;
   }
   p.innerHTML = h;
   p.querySelectorAll('[data-ferr]').forEach(b => b.onclick = () => { ferramenta = b.dataset.ferr; selPonto = null; render(); });
   p.querySelector('#btnLegenda').onclick = legendaPontos;
+  p.querySelector('#btnDupla').onclick = () => { dupla = !dupla; if (ferramenta === 'int' || ferramenta === 'par') ferramenta = 'bx'; render(); };
   if (ach) {
     const q = ach.q, a = p.querySelector('#pAlt'), ti = p.querySelector('#pTipoInt');
     if (a) a.onchange = e => { checkpoint(); q.alt = e.target.value; gravar(); render(); };
+    const du = p.querySelector('#pDupla'); if (du) du.onchange = e => { checkpoint(); q.dupla = e.target.value === '1'; gravar(); render(); };
     if (ti) ti.onchange = e => { checkpoint(); q.k = e.target.value; gravar(); render(); };
     p.querySelector('#pExc').onclick = () => { checkpoint(); ach.c.pontos = ach.c.pontos.filter(x => x.id !== q.id); selPonto = null; gravar(); render(); };
   }
@@ -971,15 +982,16 @@ function legendaPontos() {
   const circ = par => `<svg width="40" height="34"><circle cx="20" cy="17" r="9" fill="${par ? '#0d1626' : cor}" stroke="${cor}" stroke-width="2"/>${par ? `<path d="M20,8A9,9 0 0 1 20,26Z" fill="${cor}"/>` : ''}</svg>`;
   abrirModal(`<h2>Legenda dos pontos</h2>
     <table class="tab"><tr><td>${tri('bx')}</td><td>Tomada baixa · 0,30 m do piso</td></tr><tr><td>${tri('md')}</td><td>Tomada média · 1,30 m do piso</td></tr><tr><td>${tri('al')}</td><td>Tomada alta · 2,00 m do piso</td></tr>
+    <tr><td><svg width="40" height="34"><polygon points="11,6 2,28 20,28" fill="#0d1626" stroke="${cor}" stroke-width="2"/><polygon points="29,6 20,28 38,28" fill="#0d1626" stroke="${cor}" stroke-width="2"/></svg></td><td>Tomada dupla (2 tomadas na mesma caixa) · vale para as 3 alturas</td></tr>
     <tr><td>${circ(false)}</td><td>Interruptor simples · a letra é o ponto de luz que ele acende</td></tr><tr><td>${circ(true)}</td><td>Interruptor paralelo (three-way) · comanda a mesma luz de 2 lugares</td></tr></table>
-    <p class="aviso" style="margin-top:10px">Símbolos e alturas do padrão tradicional brasileiro (NBR 5444). Essa norma foi cancelada em 2014 sem substituta, mas continua sendo a mais usada em projetos residenciais; por isso todo projeto deve trazer a sua legenda. As tomadas colocadas contam no cálculo: se você puser mais que o mínimo, a carga de TUG e os circuitos usam a quantidade colocada.</p>
+    <p class="aviso" style="margin-top:10px">Símbolos e alturas do padrão tradicional brasileiro (NBR 5444). Essa norma foi cancelada em 2014 sem substituta, mas continua sendo a mais usada em projetos residenciais; por isso todo projeto deve trazer a sua legenda. Tomada dupla conta como <b>1 ponto de tomada</b> (a NBR 5410 conta pontos, não tomadas) e entra com a carga de 1 ponto. As tomadas colocadas contam no cálculo: se você puser mais que o mínimo, a carga de TUG e os circuitos usam a quantidade colocada.</p>
     <div class="botoes"><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal;
 }
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=21').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=22').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
