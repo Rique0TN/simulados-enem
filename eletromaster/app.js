@@ -438,8 +438,8 @@ function renderPainel() {
   p.innerHTML = `<div class="linha"><input id="inNome" type="text" value="${esc(c.nome)}" maxlength="40"><select id="selTipo">${opcoesTipo(c.tipo)}</select></div>
     <div class="linha medidas">Área <b>${fmt(area(c.pts))} m²</b> · Perímetro <b>${fmt(perimetro(c.pts))} m</b> · ${c.pts.length} paredes</div>
     <div class="linha medidas">💡 Iluminação (NBR 5410): mín. <b>1 ponto no teto</b> com interruptor · carga mín. <b>${iluminacao(c.pts).va} VA</b></div>
-    <div class="linha medidas">🔌 Tomadas TUG: mín. <b>${tug(c).min}</b> (NBR 5410: ${tug(c).obs}) · recomendado até <b>${tug(c).max}</b> · carga mín. <b>${tug(c).va} VA</b>${tug(c).max > tug(c).min ? ` (com ${tug(c).max}: ${tug(c).vaMax} VA)` : ''}</div>
-    <div class="linha"><button class="btn" id="btnDup">Duplicar</button><button class="btn perigo" id="btnExc">Excluir</button></div>`;
+    <div class="linha medidas">🔌 Tomadas TUG: mín. <b>${tug(c).min}</b> (NBR 5410: ${tug(c).obs}) · recomendado até <b>${tug(c).max}</b> · carga mín. <b>${tug(c).va} VA</b></div>
+    <div class="linha"><button class="btn" id="btnPorque">❓ Por que esses valores?</button><button class="btn" id="btnDup">Duplicar</button><button class="btn perigo" id="btnExc">Excluir</button></div>`;
   p.querySelector('#inNome').onchange = e => { const v = e.target.value.trim(); if (!v) return; checkpoint(); c.nome = v; gravar(); render(); };
   p.querySelector('#selTipo').onchange = e => {
     checkpoint(); const velho = nomeTipo(c.tipo); c.tipo = e.target.value;
@@ -447,6 +447,7 @@ function renderPainel() {
     gravar(); render();
   };
   p.querySelector('#btnExc').onclick = excluirComodo;
+  p.querySelector('#btnPorque').onclick = () => explicar(c);
   p.querySelector('#btnDup').onclick = () => {
     checkpoint(); const n = clone(c); n.id = uid(); n.nome = nomeAuto(n.tipo);
     const larg = Math.max(...c.pts.map(q => q[0])) - Math.min(...c.pts.map(q => q[0]));
@@ -456,6 +457,38 @@ function renderPainel() {
 function excluirComodo() {
   const c = comodo(sel.comodo); if (!c) return;
   confirmar(`Excluir ${c.nome}?`, () => { checkpoint(); proj.comodos = proj.comodos.filter(x => x.id !== c.id); sel = { comodo: null, parede: null }; gravar(); render(); });
+}
+// ---------- explicação passo a passo (base do modo aprendizagem) ----------
+function explicar(c) {
+  const a = area(c.pts), p = perimetro(c.pts), L = iluminacao(c.pts), t = tug(c), mol = MOLHADAS.includes(c.tipo);
+  let luz;
+  if (a <= 6) luz = `<li>Área de <b>${fmt(a)} m²</b> é até 6 m² → a norma pede no mínimo <b>100 VA</b>.</li>`;
+  else { const sobra = a - 6, blocos = Math.floor(sobra / 4 + 1e-9);
+    luz = `<li>Os primeiros 6 m² valem <b>100 VA</b>.</li>
+      <li>Sobram ${fmt(a)} − 6 = <b>${fmt(sobra)} m²</b>. A cada <b>4 m² inteiros</b> somam-se 60 VA: ${fmt(sobra)} ÷ 4 = ${fmt(sobra / 4)} → <b>${blocos}</b> bloco(s) inteiro(s) (a fração que sobra não conta).</li>
+      <li>100 + ${blocos} × 60 = <b>${L.va} VA</b>.</li>`; }
+  let qtd;
+  if (['cozinha', 'copa', 'area_servico'].includes(c.tipo)) qtd = `<li>Cozinha, copa e área de serviço: <b>1 tomada a cada 3,5 m</b> de perímetro (ou fração).</li>
+      <li>${fmt(p)} ÷ 3,5 = ${fmt(p / 3.5)} → como sobra fração, arredonda pra cima: <b>${Math.ceil(p / 3.5 - 1e-9)}</b>.</li>${c.tipo !== 'area_servico' ? '<li>Acima da bancada da pia: pelo menos <b>2 tomadas</b> (podem estar no mesmo ponto ou separadas).</li>' : ''}`;
+  else if (c.tipo === 'sala' || c.tipo === 'quarto') qtd = `<li>Sala e quarto: <b>1 tomada a cada 5 m</b> de perímetro (ou fração), espalhadas o mais uniforme possível.</li>
+      <li>${fmt(p)} ÷ 5 = ${fmt(p / 5)} → arredonda pra cima: <b>${t.min}</b>.</li>`;
+  else if (c.tipo === 'banheiro' || c.tipo === 'lavabo') qtd = `<li>Banheiro: pelo menos <b>1 tomada junto ao lavatório</b> (pia), respeitando a distância do box/chuveiro.</li>`;
+  else if (c.tipo === 'varanda') qtd = `<li>Varanda: pelo menos <b>1 tomada</b>.</li>`;
+  else qtd = a <= 6 ? `<li>Cômodo de até 6 m²: pelo menos <b>1 tomada</b>${a <= 2.25 ? ' (até 2,25 m² ela pode ficar do lado de fora, a até 0,80 m da porta)' : ''}.</li>`
+    : `<li>Acima de 6 m²: <b>1 tomada a cada 5 m</b> de perímetro (ou fração): ${fmt(p)} ÷ 5 = ${fmt(p / 5)} → <b>${t.min}</b>.</li>`;
+  let va;
+  if (!mol) va = `<li>Neste tipo de cômodo cada tomada de uso geral conta <b>100 VA</b>: ${t.min} × 100 = <b>${t.va} VA</b>.</li>`;
+  else { const g = t.min > 6 ? 2 : Math.min(t.min, 3), r = t.min - g;
+    va = `<li>Áreas molhadas (cozinha, copa, área de serviço, banheiro) recebem aparelhos mais fortes (micro-ondas, airfryer, secador). Por isso a norma manda contar <b>600 VA</b> nas <b>3 primeiras</b> tomadas e <b>100 VA</b> nas outras.</li>
+      <li>${g} × 600${r ? ` + ${r} × 100` : ''} = <b>${t.va} VA</b>.</li>
+      <li>Se o cômodo tiver <b>mais de 6 tomadas</b>, a norma deixa contar 600 VA em só <b>2</b> e 100 VA no resto, porque é improvável usar tudo ao mesmo tempo. ${t.max > 6 ? `Por isso, com ${t.max} tomadas a carga fica ${tugVA(c.tipo, t.max)} VA, menor que com ${t.min}.` : ''}</li>`; }
+  abrirModal(`<h2>Por que esses valores? · ${esc(c.nome)}</h2>
+    <h3 style="margin:10px 0 4px">💡 Iluminação</h3><ul class="passos"><li>Pelo menos <b>1 ponto de luz no teto</b>, com interruptor.</li>${luz}</ul>
+    <h3 style="margin:10px 0 4px">🔌 Quantas tomadas (TUG)</h3><ul class="passos">${qtd}<li>O máximo (<b>${t.max}</b>) é uma <b>recomendação do EletroMaster</b> pra uso confortável; a norma só fixa o mínimo.</li></ul>
+    <h3 style="margin:10px 0 4px">⚡ Carga das tomadas</h3><ul class="passos">${va}</ul>
+    <p class="aviso">Regras da NBR 5410 (item 9.5.2) explicadas com nossas palavras. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
+    <div class="botoes"><button class="btn" id="mCanc">Entendi</button></div>`);
+  $('#mCanc').onclick = fecharModal;
 }
 function nomeAuto(tipo, exceto) {
   const base = nomeTipo(tipo), n = proj.comodos.filter(c => c.tipo === tipo && c.id !== exceto).length;
@@ -697,7 +730,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=11').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=12').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {

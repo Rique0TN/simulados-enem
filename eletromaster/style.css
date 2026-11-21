@@ -64,3 +64,4 @@ tr.clicavel{cursor:pointer}
 .toast.vis{opacity:1;transform:translate(-50%,0)}
 .btn.perigoso{background:#ff5d5d;border-color:#ff5d5d}
 .modal-caixa table{display:block;overflow-x:auto;font-size:12px;white-space:nowrap}
+.passos{margin:0 0 6px;padding-left:20px;line-height:1.5;font-size:14px}.passos li{margin-bottom:4px}
