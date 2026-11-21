@@ -439,7 +439,7 @@ function renderPainel() {
     <div class="linha medidas">Área <b>${fmt(area(c.pts))} m²</b> · Perímetro <b>${fmt(perimetro(c.pts))} m</b> · ${c.pts.length} paredes</div>
     <div class="linha medidas">💡 Iluminação (NBR 5410): mín. <b>1 ponto no teto</b> com interruptor · carga mín. <b>${iluminacao(c.pts).va} VA</b></div>
     <div class="linha medidas">🔌 Tomadas TUG: mín. <b>${tug(c).min}</b> (NBR 5410: ${tug(c).obs}) · recomendado até <b>${tug(c).max}</b> · carga mín. <b>${tug(c).va} VA</b></div>
-    <div class="linha medidas">⚡ TUE: ${(c.tue || []).length ? (c.tue || []).map(u => `<span class="chip">${esc(u.nome)} ${u.w} W · ${fmt(tueA(u), 1)} A${tueA(u) > 10 ? ' · circ. exclusivo' : ''} <button class="x" data-tue="${u.id}">✕</button></span>`).join(' ') + ` · total <b>${tueTotal(c)} VA</b>` : 'nenhuma'} <button class="btn" id="btnTUE">+ TUE</button></div>
+    <div class="linha medidas">⚡ TUE: ${(c.tue || []).length ? (c.tue || []).map(u => `<span class="chip">${esc(u.nome)} ${u.w} W · ${fmt(tueA(u), 1)} A${tueA(u) > 10 ? ' · circ. exclusivo' : ''} <button class="x" data-tue="${u.id}">✕</button></span>`).join(' ') + ` · total <b>${tueTotal(c)} VA</b>` : 'nenhuma'} <button class="btn" id="btnTUE">+ TUE</button><button class="btn" id="btnTensao" title="Tensão da instalação">🔁 ${tensao()} V</button></div>
     <div class="linha"><button class="btn" id="btnPorque">❓ Por que esses valores?</button><button class="btn" id="btnDup">Duplicar</button><button class="btn perigo" id="btnExc">Excluir</button></div>`;
   p.querySelector('#inNome').onchange = e => { const v = e.target.value.trim(); if (!v) return; checkpoint(); c.nome = v; gravar(); render(); };
   p.querySelector('#selTipo').onchange = e => {
@@ -450,6 +450,7 @@ function renderPainel() {
   p.querySelector('#btnExc').onclick = excluirComodo;
   p.querySelector('#btnPorque').onclick = () => explicar(c);
   p.querySelector('#btnTUE').onclick = () => adicionarTUE(c);
+  p.querySelector('#btnTensao').onclick = () => { proj.tensao = tensao() === 220 ? 127 : 220; gravar(); render(); aviso(`Tensão do projeto: ${proj.tensao} V`); };
   p.querySelectorAll('[data-tue]').forEach(b => b.onclick = () => { checkpoint(); c.tue = c.tue.filter(u => u.id !== b.dataset.tue); gravar(); render(); });
   p.querySelector('#btnDup').onclick = () => {
     checkpoint(); const n = clone(c); n.id = uid(); n.nome = nomeAuto(n.tipo);
@@ -464,7 +465,8 @@ function excluirComodo() {
 // ---------- TUE (módulo 5) ----------
 // NBR 5410 (9.5.2.3): TUE recebe a potência nominal do equipamento e fica a no máximo 1,5 m do local dele.
 // Equipamento com corrente nominal acima de 10 A pede circuito independente.
-const TENSAO = 220; // Neoenergia Coelba (Salvador): 220 V fase-neutro
+// Tensão fase-neutro do projeto: 220 V (padrão Coelba em Salvador) ou 127 V, conforme a instalação da casa
+const tensao = () => (proj && proj.tensao === 127 ? 127 : 220);
 const EQUIP = [
   ['chuveiro', 'Chuveiro elétrico', 5500, 1], ['torneira', 'Torneira elétrica', 3500, 1], ['forno', 'Forno elétrico', 2000, 1],
   ['cooktop', 'Cooktop de indução', 6000, 1], ['micro', 'Micro-ondas', 1400, 1], ['lavalouca', 'Lava-louças', 1500, 1],
@@ -475,7 +477,7 @@ const EQUIP = [
 const SUGESTAO = { banheiro: ['chuveiro'], cozinha: ['torneira', 'micro', 'forno'], area_servico: ['maquina'], quarto: ['ar9'], sala: ['ar12'], escritorio: ['ar9'] };
 const equip = k => EQUIP.find(e => e[0] === k) || EQUIP[EQUIP.length - 1];
 const tueVA = u => Math.round(u.w / u.fp);
-const tueA = u => tueVA(u) / TENSAO;
+const tueA = u => tueVA(u) / tensao();
 function tueTotal(c) { return (c.tue || []).reduce((s, u) => s + tueVA(u), 0); }
 function adicionarTUE(c) {
   const sug = SUGESTAO[c.tipo] || [];
@@ -527,9 +529,9 @@ function explicar(c) {
   else tugA.push(`Carga: ${t.min} × 100 = <b>${t.va} VA</b>.`);
   tugA.push(`Máximo de <b>${t.max}</b>: recomendação do EletroMaster pra uso confortável (a norma só fixa o mínimo). Com ${t.max} tomadas a carga seria ${tugVA(c.tipo, t.max)} VA${mol && t.max > 6 ? ' (menor, por causa da regra de mais de 6 tomadas)' : ''}.`);
   // TUE
-  const tueN = ['Cada TUE recebe a <b>potência nominal</b> do aparelho (a da etiqueta).', 'A tomada (ou ponto) fica a <b>no máximo 1,5 m</b> do lugar do aparelho.', 'Aparelho com corrente acima de <b>10 A</b> deve ter <b>circuito só dele</b>.'];
+  const tueN = [`Tensão usada neste projeto: <b>${tensao()} V</b> (troque no botão de tensão do painel conforme a instalação da casa). Em 127 V a corrente fica maior e mais aparelhos passam de 10 A.`, 'Cada TUE recebe a <b>potência nominal</b> do aparelho (a da etiqueta).', 'A tomada (ou ponto) fica a <b>no máximo 1,5 m</b> do lugar do aparelho.', 'Aparelho com corrente acima de <b>10 A</b> deve ter <b>circuito só dele</b>.'];
   const us = c.tue || [];
-  const tueAp = us.length ? us.map(u => `${esc(u.nome)}: ${u.w} W${u.fp < 1 ? ` ÷ ${fmt(u.fp, 1)} (fator de potência) = ${tueVA(u)} VA` : ` = ${tueVA(u)} VA`} → ${tueVA(u)} ÷ ${TENSAO} V = <b>${fmt(tueA(u), 1)} A</b>${tueA(u) > 10 ? ' → passa de 10 A: <b>circuito exclusivo</b>.' : ' → até 10 A.'}`).concat([`Total de TUE: <b>${tueTotal(c)} VA</b>.`]) : ['Nenhuma TUE neste cômodo ainda. Use "+ TUE" pra adicionar chuveiro, ar, forno etc.'];
+  const tueAp = us.length ? us.map(u => `${esc(u.nome)}: ${u.w} W${u.fp < 1 ? ` ÷ ${fmt(u.fp, 1)} (fator de potência) = ${tueVA(u)} VA` : ` = ${tueVA(u)} VA`} → ${tueVA(u)} ÷ ${tensao()} V = <b>${fmt(tueA(u), 1)} A</b>${tueA(u) > 10 ? ' → passa de 10 A: <b>circuito exclusivo</b>.' : ' → até 10 A.'}`).concat([`Total de TUE: <b>${tueTotal(c)} VA</b>.`]) : ['Nenhuma TUE neste cômodo ainda. Use "+ TUE" pra adicionar chuveiro, ar, forno etc.'];
   abrirModal(`<h2>Por que esses valores? · ${esc(c.nome)} (${tipo})</h2>
     ${bloco('💡 Iluminação', luzN, luzA)}${bloco(`🔌 Tomadas de uso geral (TUG) em ${tipo.toLowerCase()}`, regraTUG(c.tipo), tugA)}${bloco("⚡ Tomadas de uso específico (TUE)", tueN, tueAp)}
     <p class="aviso">Regras da NBR 5410 (item 9.5.2) explicadas com nossas palavras, sem copiar o texto da ABNT. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
@@ -608,7 +610,7 @@ $('#btnComodos').onclick = () => {
   abrirModal(`<h2>Cômodos de ${esc(proj.nome)}</h2>
     <table><tr><th>Nome</th><th>Tipo</th><th class="n">Área (m²)</th><th class="n">Perím. (m)</th><th class="n">Luz (VA)</th><th class="n">TUG</th><th class="n">TUG (VA)</th><th class="n">TUE (VA)</th></tr>${linhas}
     <tr class="total"><td>Total</td><td>${proj.comodos.length} cômodo(s)</td><td class="n">${fmt(ta)}</td><td class="n">—</td><td class="n">${tv}</td><td class="n">${tn}</td><td class="n">${tt}</td><td class="n">${te}</td></tr></table>
-    <p class="aviso" style="margin-top:10px">Luz: mínimo pela NBR 5410 (1 ponto no teto por cômodo; 100 VA até 6 m², +60 VA a cada 4 m² inteiros). TUG: mínimo da NBR 5410 – máximo recomendado pelo app; VA calculado com o mínimo (600 VA nas 3 primeiras de cozinha, copa, área de serviço e banheiro; 100 VA nas demais). TUE: potência do aparelho; acima de 10 A em 220 V, circuito exclusivo. Ferramenta de apoio: confira com profissional habilitado.</p>
+    <p class="aviso" style="margin-top:10px">Luz: mínimo pela NBR 5410 (1 ponto no teto por cômodo; 100 VA até 6 m², +60 VA a cada 4 m² inteiros). TUG: mínimo da NBR 5410 – máximo recomendado pelo app; VA calculado com o mínimo (600 VA nas 3 primeiras de cozinha, copa, área de serviço e banheiro; 100 VA nas demais). TUE: potência do aparelho; acima de 10 A na tensão do projeto (${tensao()} V), circuito exclusivo. Ferramenta de apoio: confira com profissional habilitado.</p>
     <div class="botoes"><button class="btn" id="mImg">📷 Imagem da planta</button><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal; $('#mImg').onclick = () => { fecharModal(); exportarImagem(); };
   $('#modalConteudo').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { fecharModal(); definirModo('selecionar'); sel = { comodo: tr.dataset.id, parede: null }; render(); });
@@ -776,7 +778,7 @@ function toque(s) {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=13').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=14').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
