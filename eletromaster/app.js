@@ -440,6 +440,7 @@ function renderPainel() {
   }
   p.innerHTML = `<div class="linha"><input id="inNome" type="text" value="${esc(c.nome)}" maxlength="40"><select id="selTipo">${opcoesTipo(c.tipo)}</select></div>
     <div class="linha medidas">Área <b>${fmt(area(c.pts))} m²</b> · Perímetro <b>${fmt(perimetro(c.pts))} m</b> · ${c.pts.length} paredes</div>
+    <div class="linha medidas">Pé-direito (altura) <input id="inAlt" class="num" type="text" inputmode="decimal" value="${fmt(peDireito(c))}" style="max-width:80px"> m · Volume <b>${fmt(area(c.pts) * peDireito(c), 1)} m³</b> · Paredes <b>${fmt(perimetro(c.pts) * peDireito(c), 1)} m²</b> <button class="btn" id="btnAltTodos">Usar em todos</button></div>
     <div class="linha medidas">💡 Iluminação (NBR 5410): mín. <b>1 ponto no teto</b> com interruptor · carga mín. <b>${iluminacao(c.pts).va} VA</b></div>
     <div class="linha medidas">🔌 Tomadas TUG: mín. <b>${tug(c).min}</b> (NBR 5410: ${tug(c).obs}) · recomendado até <b>${tug(c).max}</b> · colocadas na planta <b>${tug(c).col}</b> · carga <b>${tug(c).va} VA</b></div>
     <div class="linha medidas">⚡ TUE: ${(c.tue || []).length ? (c.tue || []).map(u => `<span class="chip" data-edtue="${u.id}">✏️ ${esc(u.nome)} ${u.w} W · ${fmt(tueA(u), 1)} A${tueA(u) > 10 ? ' · circ. exclusivo' : ''} <button class="x" data-tue="${u.id}">✕</button></span>`).join(' ') + ` · total <b>${tueTotal(c)} VA</b>` : 'nenhuma'} <button class="btn" id="btnTUE">+ TUE</button><button class="btn" id="btnTensao" title="Tensão da instalação">🔁 ${tensao()} V</button></div>
@@ -451,6 +452,9 @@ function renderPainel() {
     gravar(); render();
   };
   p.querySelector('#btnExc').onclick = excluirComodo;
+  const lerAlt = () => { const v = lerMedida(p.querySelector('#inAlt').value, 'm'); if (!isFinite(v) || v < 1.8 || v > 10) { aviso('Pé-direito entre 1,80 e 10 m (ex.: 2,80).'); render(); return null; } return +v.toFixed(3); };
+  p.querySelector('#inAlt').onchange = () => { const v = lerAlt(); if (v == null) return; checkpoint(); c.altura = v; gravar(); render(); };
+  p.querySelector('#btnAltTodos').onclick = () => { const v = lerAlt(); if (v == null) return; checkpoint(); proj.comodos.forEach(o => o.altura = v); gravar(); render(); aviso(`Pé-direito de ${fmt(v)} m em todos os cômodos`); };
   p.querySelector('#btnPorque').onclick = () => explicar(c);
   p.querySelector('#btnTUE').onclick = () => adicionarTUE(c);
   p.querySelector('#btnTensao').onclick = () => { proj.tensao = tensao() === 220 ? 127 : 220; gravar(); render(); aviso(`Tensão do projeto: ${proj.tensao} V`); };
@@ -568,9 +572,12 @@ const agrup = () => Math.min(Math.max(proj.agrup || 3, 1), 9);
 const fca = () => FCA[agrup()];
 const secMin = tipo => tipo === 'Iluminação' ? 1.5 : 2.5;
 const maiorDisj = sec => { const iz = CAP.find(c => c[0] === sec)[1] * fca(); return [...DISJ].reverse().find(d => d <= iz) || 0; };
-const RHO = 1 / 56, QUEDA_MAX = 4, SOBE_DESCE = 3; // cobre (Ω·mm²/m); limite p/ circuitos terminais; m de subidas/descidas
-function qdcPos() { for (const c of proj.comodos) { const q = (c.pontos || []).find(x => x.k === 'qdc'); if (q) { const g = geoPonto(c, q); if (g) return g.m; } } return null; }
-const distQdc = (p, Q) => Q ? Math.abs(p[0] - Q[0]) + Math.abs(p[1] - Q[1]) + SOBE_DESCE : null; // caminho em "L" (como o eletroduto anda) + subidas/descidas
+const RHO = 1 / 56, QUEDA_MAX = 4, H_QDC = 1.5, PE_DIREITO = 2.8; // cobre (Ω·mm²/m); limite p/ circuitos terminais; altura do meio do quadro; pé-direito padrão
+const ALT_M = { bx: 0.3, md: 1.3, al: 2.0 };
+const peDireito = c => c && c.altura > 0 ? c.altura : PE_DIREITO;
+function qdcPos() { for (const c of proj.comodos) { const q = (c.pontos || []).find(x => x.k === 'qdc'); if (q) { const g = geoPonto(c, q); if (g) return { m: g.m, h: peDireito(c) }; } } return null; }
+// caminho em "L" (como o eletroduto anda) + sobe do quadro até o teto + desce do teto até o ponto
+const distQdc = (p, Q, hTeto, hPonto) => Q ? Math.abs(p[0] - Q.m[0]) + Math.abs(p[1] - Q.m[1]) + Math.max(0, Q.h - H_QDC) + Math.max(0, hTeto - hPonto) : null;
 const queda = (ib, L, S) => 2 * RHO * L * ib / S / tensao() * 100;
 function dimensionar(c) { // escolhe disjuntor e seção pela regra Ib ≤ In ≤ Iz e pela queda de tensão
   const ib = c.i, inn = DISJ.find(d => d >= ib - 1e-9) || DISJ[DISJ.length - 1];
@@ -588,13 +595,13 @@ function agrupar(itens, lim) {
 function resumoItens(its) { const m = new Map(); its.forEach(i => m.set(i.nome, (m.get(i.nome) || 0) + i.n)); return [...m].map(([n, q]) => `${esc(n)}${q > 1 ? ` (${q})` : ''}`).join(', '); }
 function circuitos() {
   const Q = qdcPos(), V = tensao(), limL = maiorDisj(1.5) * V, limT = maiorDisj(2.5) * V, lim = limT, cs = proj.comodos, out = [];
-  const luz = cs.map(c => ({ nome: c.nome, va: iluminacao(c.pts).va, n: 1, d: distQdc(centroide(c.pts), Q) }));
+  const luz = cs.map(c => ({ nome: c.nome, va: iluminacao(c.pts).va, n: 1, d: distQdc(centroide(c.pts), Q, peDireito(c), peDireito(c)) }));
   agrupar(luz, limL).forEach(g => out.push({ tipo: 'Iluminação', desc: resumoItens(g.itens), va: g.va, L: g.L }));
-  const tomadas = grupo => cs.filter(grupo).flatMap(c => { const t = tug(c), arr = [], tom = (c.pontos || []).filter(q => q.k === 'tom').map(q => geoPonto(c, q)).filter(Boolean).map(g => g.m);
-    for (let k = 1; k <= t.n; k++) arr.push({ nome: c.nome, va: tugVA(c.tipo, k) - tugVA(c.tipo, k - 1), n: 1, d: distQdc(tom[k - 1] || centroide(c.pts), Q) }); return arr; });
+  const tomadas = grupo => cs.filter(grupo).flatMap(c => { const t = tug(c), arr = [], tom = (c.pontos || []).filter(q => q.k === 'tom').map(q => ({ g: geoPonto(c, q), h: ALT_M[q.alt] ?? 0.3 })).filter(x => x.g);
+    for (let k = 1; k <= t.n; k++) { const tk = tom[k - 1]; arr.push({ nome: c.nome, va: tugVA(c.tipo, k) - tugVA(c.tipo, k - 1), n: 1, d: distQdc(tk ? tk.g.m : centroide(c.pts), Q, peDireito(c), tk ? tk.h : 0.3) }); } return arr; });
   agrupar(tomadas(c => !MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG', desc: resumoItens(g.itens), va: g.va, L: g.L }));
   agrupar(tomadas(c => MOLH_CIRC.includes(c.tipo)), lim).forEach(g => out.push({ tipo: 'TUG (cozinha/serviço)', desc: resumoItens(g.itens), va: g.va, L: g.L }));
-  cs.forEach(c => (c.tue || []).forEach(u => out.push({ tipo: 'TUE', desc: `${esc(u.nome)} (${esc(c.nome)})`, va: tueVA(u), exclusivo: tueA(u) > 10, L: distQdc(centroide(c.pts), Q) })));
+  cs.forEach(c => (c.tue || []).forEach(u => out.push({ tipo: 'TUE', desc: `${esc(u.nome)} (${esc(c.nome)})`, va: tueVA(u), exclusivo: tueA(u) > 10, L: distQdc(centroide(c.pts), Q, peDireito(c), 1.3) })));
   out.forEach((c, i) => { c.n = i + 1; c.i = c.va / V; Object.assign(c, dimensionar(c)); });
   return { lista: out, V, lim, limL, limT, Q };
 }
@@ -608,7 +615,7 @@ function mostrarCircuitos() {
     <div class="linha medidas" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">Circuitos no mesmo eletroduto (pior trecho): <select id="mAgr">${[1, 2, 3, 4, 5, 6].map(n => `<option ${n === agrup() ? 'selected' : ''}>${n}</option>`).join('')}</select> → fator ${fmt(fca(), 2)}</div>
     <h3 class="exp-t">Por que ficou assim?</h3>
     <div class="exp-norma"><b>📘 O que a norma diz</b>${ls(['Iluminação e tomadas devem ficar em <b>circuitos separados</b>.', 'As tomadas de <b>cozinha, copa, área de serviço e lavanderia</b> devem ter circuitos <b>só para elas</b>, sem misturar com outros cômodos.', 'Todo aparelho com corrente acima de <b>10 A</b> precisa de <b>circuito independente</b>.', 'Os circuitos devem ser divididos para facilitar manutenção e evitar que um defeito desligue a casa toda.', 'A norma não fixa potência máxima por circuito. O que vale é a <b>coordenação entre fio e disjuntor</b>: <b>Ib ≤ In ≤ Iz</b>.', '<b>Ib</b> = corrente que o circuito puxa (potência ÷ tensão). <b>In</b> = corrente nominal do disjuntor. <b>Iz</b> = corrente que o fio aguenta sem esquentar demais, já com os fatores de correção.', 'Em palavras: o disjuntor tem que <b>aguentar a carga sem desarmar</b> (In ≥ Ib) e <b>desarmar antes de o fio superaquecer</b> (In ≤ Iz). Por isso o disjuntor mínimo é o primeiro valor comercial acima de Ib, e o máximo é o maior valor que não passa de Iz.', 'Também se exige que a corrente que garante o desarme por sobrecarga não passe de 1,45 × Iz; os disjuntores residenciais (NBR NM 60898) já atendem isso quando In ≤ Iz.', 'Seção mínima do fio de cobre: <b>1,5 mm²</b> em iluminação e <b>2,5 mm²</b> em tomadas e força.', 'A capacidade do fio diminui quando vários circuitos passam no mesmo eletroduto (<b>fator de agrupamento</b>) e em ambientes mais quentes que 30 °C.', 'Valores de capacidade usados: cobre com isolação PVC, eletroduto embutido em alvenaria, 2 condutores carregados, 30 °C.', '<b>Queda de tensão</b>: nos circuitos terminais (do quadro até a tomada ou luz) ela não pode passar de <b>4%</b>. Fio comprido ou corrente alta = mais queda; se passar, aumenta-se a seção do fio.'])}</div>
-    <div class="exp-aplic"><b>🧮 Como foi aplicado na sua casa</b>${ls([`Fio mínimo: 1,5 mm² na luz, 2,5 mm² nas tomadas. Com ${agrup()} circuito(s) no mesmo eletroduto o fio aguenta menos (fator ${fmt(fca(), 2)}): 1,5 mm² → ${fmt(17.5 * fca(), 1)} A e 2,5 mm² → ${fmt(24 * fca(), 1)} A.`, `Por isso cada circuito de luz vai até o disjuntor de ${maiorDisj(1.5)} A (${limL} VA em ${V} V) e cada circuito de TUG até ${maiorDisj(2.5)} A (${limT} VA). Passou disso, o app abre outro circuito.`, `Iluminação: ${nL} circuito(s) · TUG: ${nT} · TUG de cozinha/serviço: ${nM} (exclusivos) · TUE: ${nE}, um por aparelho${lista.some(c => c.exclusivo) ? ' (os de mais de 10 A são obrigatórios pela norma)' : ''}.`, ...lista.filter(c => c.tipo === 'TUE' || c.sec > secMin(c.tipo)).map(c => `Circuito ${c.n}: Ib = ${c.va} ÷ ${V} = ${fmt(c.i, 1)} A → disjuntor mínimo ${c.dmin} A → precisa de fio que aguente ≥ ${c.dmin} A: ${fmt(c.sec, 1).replace(',0', '')} mm² aguenta ${c.cap} × ${fmt(fca(), 2)} = ${fmt(c.iz, 1)} A ✔ → com esse fio, o disjuntor pode ir de ${c.dmin} A até ${c.dmax} A.`), ...(Q ? [`Distância: do quadro até o ponto mais longe de cada circuito, andando em "L" pelas paredes (como o eletroduto costuma ir) + ${SOBE_DESCE} m de subidas e descidas. Tomadas colocadas na planta usam a posição real; as que faltam usam o meio do cômodo.`, `Queda (%) = 2 × ρ × L × Ib ÷ (S × V) × 100, com ρ do cobre = 1/56 Ω·mm²/m. Considera toda a carga no ponto mais longe (a favor da segurança).`, ...lista.filter(c => c.porQueda).map(c => `Circuito ${c.n}: com ${fmt(c.secAmp, 1).replace(',0', '')} mm² a queda seria ${fmt(c.dvAntes, 2)}% (passa de 4%) → o fio subiu pra ${fmt(c.sec, 1).replace(',0', '')} mm² e ficou ${fmt(c.dv, 2)}% ✔.`), ...(lista.some(c => c.porQueda) ? [] : ['Todos os circuitos ficaram abaixo de 4% de queda com o fio escolhido ✔.'])] : ['Queda de tensão: coloque o quadro na planta (botão 🔌 Pontos → ▣ Quadro) pra o app medir as distâncias.'])])}</div>
+    <div class="exp-aplic"><b>🧮 Como foi aplicado na sua casa</b>${ls([`Fio mínimo: 1,5 mm² na luz, 2,5 mm² nas tomadas. Com ${agrup()} circuito(s) no mesmo eletroduto o fio aguenta menos (fator ${fmt(fca(), 2)}): 1,5 mm² → ${fmt(17.5 * fca(), 1)} A e 2,5 mm² → ${fmt(24 * fca(), 1)} A.`, `Por isso cada circuito de luz vai até o disjuntor de ${maiorDisj(1.5)} A (${limL} VA em ${V} V) e cada circuito de TUG até ${maiorDisj(2.5)} A (${limT} VA). Passou disso, o app abre outro circuito.`, `Iluminação: ${nL} circuito(s) · TUG: ${nT} · TUG de cozinha/serviço: ${nM} (exclusivos) · TUE: ${nE}, um por aparelho${lista.some(c => c.exclusivo) ? ' (os de mais de 10 A são obrigatórios pela norma)' : ''}.`, ...lista.filter(c => c.tipo === 'TUE' || c.sec > secMin(c.tipo)).map(c => `Circuito ${c.n}: Ib = ${c.va} ÷ ${V} = ${fmt(c.i, 1)} A → disjuntor mínimo ${c.dmin} A → precisa de fio que aguente ≥ ${c.dmin} A: ${fmt(c.sec, 1).replace(',0', '')} mm² aguenta ${c.cap} × ${fmt(fca(), 2)} = ${fmt(c.iz, 1)} A ✔ → com esse fio, o disjuntor pode ir de ${c.dmin} A até ${c.dmax} A.`), ...(Q ? [`Distância: do quadro até o ponto mais longe de cada circuito, andando em "L" pelas paredes (como o eletroduto costuma ir) + a subida do quadro (meio a ${fmt(H_QDC, 1)} m do piso) até o teto + a descida do teto até o ponto. A altura usa o pé-direito de cada cômodo e a altura da tomada (baixa 0,30 · média 1,30 · alta 2,00 m); TUE conta 1,30 m. Tomadas colocadas usam a posição real; as que faltam, o meio do cômodo a 0,30 m.`, `Queda (%) = 2 × ρ × L × Ib ÷ (S × V) × 100, com ρ do cobre = 1/56 Ω·mm²/m. Considera toda a carga no ponto mais longe (a favor da segurança).`, ...lista.filter(c => c.porQueda).map(c => `Circuito ${c.n}: com ${fmt(c.secAmp, 1).replace(',0', '')} mm² a queda seria ${fmt(c.dvAntes, 2)}% (passa de 4%) → o fio subiu pra ${fmt(c.sec, 1).replace(',0', '')} mm² e ficou ${fmt(c.dv, 2)}% ✔.`), ...(lista.some(c => c.porQueda) ? [] : ['Todos os circuitos ficaram abaixo de 4% de queda com o fio escolhido ✔.'])] : ['Queda de tensão: coloque o quadro na planta (botão 🔌 Pontos → ▣ Quadro) pra o app medir as distâncias.'])])}</div>
     <p class="aviso">Regras da NBR 5410 (itens 9.5.3, 6.2.6, 6.2.7 e 5.3) explicadas com nossas palavras. Ferramenta de apoio: o projeto oficial precisa de profissional habilitado e ART.</p>
     <div class="botoes"><button class="btn" id="mVolta">← Cômodos</button><button class="btn" id="mCanc">Fechar</button></div>`);
   $('#mCanc').onclick = fecharModal; $('#mVolta').onclick = () => $('#btnComodos').onclick();
@@ -1006,7 +1013,7 @@ function legendaPontos() {
 
 // ---------- início ----------
 renderLista();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=23').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js?v=24').catch(() => {});
 
 // ---------- exportar imagem (PNG) da planta ----------
 function exportarImagem() {
